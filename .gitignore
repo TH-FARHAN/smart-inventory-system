@@ -1,0 +1,23 @@
+# secrets
+application-local.properties
+.env
+*.env
+*.jks
+*.keystore
+local.properties
+
+# Postman (may contain saved tokens)
+.postman/
+postman/
+
+# build output
+target/
+node_modules/
+dist/
+build/
+.gradle/
+*.apk
+
+# editor
+.idea/
+.vscode/
