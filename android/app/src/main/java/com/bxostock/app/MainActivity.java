@@ -49,12 +49,15 @@ public class MainActivity extends AppCompatActivity {
             confirmLogout();
         });
 
+        findViewById(R.id.dProfile).setOnClickListener(v -> go(new ProfileFragment()));
+
         if ("ADMIN".equals(role)) {
             findViewById(R.id.adminItems).setVisibility(View.VISIBLE);
             findViewById(R.id.dUsers).setOnClickListener(v -> go(new UsersFragment()));
             findViewById(R.id.dCategories).setOnClickListener(v -> go(new CategoriesFragment()));
             findViewById(R.id.dReports).setOnClickListener(v -> go(new ReportsFragment()));
             findViewById(R.id.dAudit).setOnClickListener(v -> go(new AuditLogsFragment()));
+            findViewById(R.id.dStaff).setOnClickListener(v -> go(new StaffPerformanceFragment()));
         }
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -98,6 +101,8 @@ public class MainActivity extends AppCompatActivity {
         if (f instanceof CategoriesFragment) return "Categories";
         if (f instanceof ReportsFragment) return "Reports";
         if (f instanceof AuditLogsFragment) return "Audit logs";
+        if (f instanceof StaffPerformanceFragment) return "Staff performance";
+        if (f instanceof ProfileFragment) return "Profile";
         return "Dashboard";
     }
 

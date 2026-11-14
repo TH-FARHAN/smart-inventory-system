@@ -1,6 +1,8 @@
 package com.bxostock.app.api;
 
 import com.bxostock.app.model.AuditLog;
+import com.bxostock.app.model.ChangePasswordRequest;
+import com.bxostock.app.model.ResetPasswordRequest;
 import com.bxostock.app.model.CaptchaResponse;
 import com.bxostock.app.model.Category;
 import com.bxostock.app.model.CategoryRequest;
@@ -89,6 +91,12 @@ public interface ApiService {
 
     @POST("orders/{id}/cancel")
     Call<ResponseBody> cancelOrder(@Path("id") long id);
+
+    @POST("account/change-password")
+    Call<ResponseBody> changePassword(@Body ChangePasswordRequest body);
+
+    @PATCH("admin/users/{id}/reset-password")
+    Call<ResponseBody> resetPassword(@Path("id") long id, @Body ResetPasswordRequest body);
 
     // ----- admin only -----
     @GET("admin/users")

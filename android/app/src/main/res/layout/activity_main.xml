@@ -168,12 +168,15 @@
                 android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
                 android:clickable="true" android:focusable="true" android:padding="16dp"
                 android:text="Audit logs" android:textSize="16sp" />
+            <TextView android:id="@+id/dStaff" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Staff performance" />
         </LinearLayout>
 
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
+
+        <TextView android:id="@+id/dProfile" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Profile" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLogout"

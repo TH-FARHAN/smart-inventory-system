@@ -10,6 +10,8 @@ import Users from "./pages/Users";
 import Categories from "./pages/Categories";
 import AuditLogs from "./pages/AuditLogs";
 import Reports from "./pages/Reports";
+import Profile from "./pages/Profile";
+import StaffPerformance from "./pages/StaffPerformance";
 
 function Protected({ children }) {
   return localStorage.getItem("token") ? children : <Navigate to="/login" replace />;
@@ -34,6 +36,8 @@ export default function App() {
         <Route path="/categories" element={<AdminOnly><Categories /></AdminOnly>} />
         <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
         <Route path="/audit-logs" element={<AdminOnly><AuditLogs /></AdminOnly>} />
+        <Route path="/staff-performance" element={<AdminOnly><StaffPerformance /></AdminOnly>} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -17,6 +17,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import java.util.List;
 import java.util.Locale;
 
+import okhttp3.ResponseBody;
+import com.bxostock.app.model.ResetPasswordRequest;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -63,6 +65,7 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
                         + (isMe(u) ? "\n\nThis is your own account." : ""))
                 .setNeutralButton("Close", null);
         if (!isMe(u)) {
+            b.setNegativeButton("Reset password", (d, w) -> showReset(u));
             if (u.active) {
                 b.setPositiveButton("Deactivate", (d, w) -> confirmDeactivate(u));
             } else {
@@ -70,6 +73,47 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
             }
         }
         b.show();
+    }
+
+    private void showReset(final UserResponse u) {
+        final EditText e = new EditText(requireContext());
+        e.setHint("New password (min 8 characters)");
+        e.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout box = new android.widget.FrameLayout(requireContext());
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(e);
+        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Reset password for " + u.name)
+                .setView(box)
+                .setPositiveButton("Reset", null)
+                .setNegativeButton("Cancel", null)
+                .create();
+        d.show();
+        d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(x -> {
+            String pw = e.getText().toString();
+            if (pw.length() < 8) { e.setError("At least 8 characters"); return; }
+            ResetPasswordRequest req = new ResetPasswordRequest();
+            req.newPassword = pw;
+            ApiClient.get(requireContext()).resetPassword(u.id, req).enqueue(new Callback<ResponseBody>() {
+                @Override
+                public void onResponse(Call<ResponseBody> c, Response<ResponseBody> r) {
+                    if (!isAdded()) return;
+                    if (r.isSuccessful()) {
+                        d.dismiss();
+                        Toast.makeText(requireContext(), "Password reset for " + u.name + ". Account unlocked.",
+                                Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(requireContext(), ApiError.message(r), Toast.LENGTH_LONG).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<ResponseBody> c, Throwable t) {
+                    if (isAdded()) Toast.makeText(requireContext(), ApiError.NETWORK, Toast.LENGTH_LONG).show();
+                }
+            });
+        });
     }
 
     private void confirmDeactivate(final UserResponse u) {

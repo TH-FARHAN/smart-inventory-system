@@ -16,10 +16,12 @@ export default function Layout() {
     { to: "/inventory", label: "Inventory" },
     { to: "/customers", label: "Customers" },
     { to: "/orders", label: "Orders" },
+    { to: "/profile", label: "Profile" },
     { to: "/users", label: "Users", adminOnly: true },
     { to: "/categories", label: "Categories", adminOnly: true },
     { to: "/reports", label: "Reports", adminOnly: true },
     { to: "/audit-logs", label: "Audit logs", adminOnly: true },
+    { to: "/staff-performance", label: "Staff performance", adminOnly: true },
   ].filter((l) => !l.adminOnly || isAdmin);
 
   async function logout() {

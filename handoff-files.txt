@@ -1,0 +1,1667 @@
+
+
+===== backend\src\main\java\backend\service\OrderService.java =====
+package backend.service;
+
+import backend.dto.OrderRequest;
+import backend.dto.OrderResponse;
+import backend.entity.*;
+import backend.enums.MovementType;
+import backend.enums.OrderStatus;
+import backend.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+@Service
+@RequiredArgsConstructor
+public class OrderService {
+    private final SalesOrderRepository orders;
+    private final CustomerRepository customers;
+    private final ProductRepository products;
+    private final StockMovementRepository movements;
+    private final UserRepository users;
+
+    @Transactional
+    public OrderResponse create(OrderRequest r, String email) {
+        Customer customer = customers.findById(r.customerId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Customer not found"));
+        User user = users.findByEmail(email).orElseThrow();
+
+        // merge duplicate products and sort by id so row locks are always taken in the same order
+        Map<Long, Integer> wanted = new TreeMap<>();
+        for (OrderRequest.Item i : r.items()) {
+            wanted.merge(i.productId(), i.quantity(), Integer::sum);
+        }
+
+        SalesOrder order = new SalesOrder();
+        order.setCustomer(customer);
+        order.setCreatedBy(user);
+        orders.save(order);
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (Map.Entry<Long, Integer> e : wanted.entrySet()) {
+            int qty = e.getValue();
+            Product p = products.findByIdForUpdate(e.getKey())
+                    .filter(Product::isActive)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Product not found: " + e.getKey()));
+            int prev = p.getCurrentStock();
+            if (prev < qty)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Insufficient stock for " + p.getName() + ". Available: " + prev);
+            p.setCurrentStock(prev - qty);
+
+            BigDecimal unitPrice = p.getSellingPrice();
+            BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(qty));
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setProduct(p);
+            item.setQuantity(qty);
+            item.setUnitPrice(unitPrice);
+            item.setSubtotal(subtotal);
+            order.getItems().add(item);
+            total = total.add(subtotal);
+
+            movements.save(StockMovement.of(p, user, MovementType.STOCK_OUT, qty, prev, prev - qty,
+                    "Order #" + order.getId()));
+        }
+        order.setTotalAmount(total);
+        return OrderResponse.from(order);
+    }
+
+    @Transactional
+    public OrderResponse cancel(Long id, String email) {
+        SalesOrder order = orders.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (order.getStatus() == OrderStatus.CANCELLED)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Order is already cancelled");
+        User user = users.findByEmail(email).orElseThrow();
+
+        for (OrderItem item : order.getItems()) {
+            Product p = products.findByIdForUpdate(item.getProduct().getId()).orElseThrow();
+            int prev = p.getCurrentStock();
+            int updated = prev + item.getQuantity();
+            p.setCurrentStock(updated);
+            movements.save(StockMovement.of(p, user, MovementType.STOCK_IN, item.getQuantity(), prev, updated,
+                    "Order #" + order.getId() + " cancelled"));
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        return OrderResponse.from(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponse> list() {
+        return orders.findAllByOrderByCreatedAtDesc().stream().map(OrderResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse get(Long id) {
+        return OrderResponse.from(orders.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found")));
+    }
+}
+
+===== backend\src\main\java\backend\entity\SalesOrder.java =====
+package backend.entity;
+
+import backend.enums.OrderStatus;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "orders")
+@Getter @Setter @NoArgsConstructor
+public class SalesOrder {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne(optional = false)
+    private Customer customer;
+    @ManyToOne(optional = false)
+    private User createdBy;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private OrderStatus status = OrderStatus.CONFIRMED;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
+    private LocalDateTime createdAt = LocalDateTime.now();
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrderItem> items = new ArrayList<>();
+}
+
+===== backend\src\main\java\backend\entity\OrderItem.java =====
+package backend.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "order_items")
+@Getter @Setter @NoArgsConstructor
+public class OrderItem {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne(optional = false)
+    private SalesOrder order;
+    @ManyToOne(optional = false)
+    private Product product;
+    private int quantity;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitPrice;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal subtotal;
+}
+
+===== backend\src\main\java\backend\service\StockService.java =====
+package backend.service;
+
+import backend.dto.MovementResponse;
+import backend.dto.ProductResponse;
+import backend.dto.StockRequest;
+import backend.entity.Product;
+import backend.entity.StockMovement;
+import backend.entity.User;
+import backend.enums.MovementType;
+import backend.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class StockService {
+    private final ProductRepository products;
+    private final StockMovementRepository movements;
+    private final UserRepository users;
+
+    @Transactional
+    public ProductResponse change(StockRequest r, MovementType type, String email) {
+        if (type == MovementType.STOCK_OUT && (r.reason() == null || r.reason().isBlank()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reason is required for stock-out");
+        Product p = products.findByIdForUpdate(r.productId())
+                .filter(Product::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+        int prev = p.getCurrentStock();
+        int updated = type == MovementType.STOCK_IN ? prev + r.quantity() : prev - r.quantity();
+        if (updated < 0)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock. Available: " + prev);
+        p.setCurrentStock(updated);
+        User u = users.findByEmail(email).orElseThrow();
+        movements.save(StockMovement.of(p, u, type, r.quantity(), prev, updated, r.reason()));
+        return ProductResponse.from(p);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> lowStock() {
+        return products.findLowStock().stream().map(ProductResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MovementResponse> history(Long productId) {
+        List<StockMovement> list = productId == null
+                ? movements.findTop100ByOrderByCreatedAtDesc()
+                : movements.findTop100ByProductIdOrderByCreatedAtDesc(productId);
+        return list.stream().map(MovementResponse::from).toList();
+    }
+}
+
+===== backend\src\main\java\backend\entity\StockMovement.java =====
+package backend.entity;
+
+import backend.enums.MovementType;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "stock_movements")
+@Getter @Setter @NoArgsConstructor
+public class StockMovement {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne(optional = false)
+    private Product product;
+    @ManyToOne(optional = false)
+    private User user;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MovementType movementType;
+    private int quantity;
+    private int previousStock;
+    private int updatedStock;
+    private String reason;
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    public static StockMovement of(Product p, User u, MovementType t, int qty, int prev, int updated, String reason) {
+        StockMovement m = new StockMovement();
+        m.product = p; m.user = u; m.movementType = t;
+        m.quantity = qty; m.previousStock = prev; m.updatedStock = updated; m.reason = reason;
+        return m;
+    }
+}
+
+===== backend\src\main\java\backend\enums\MovementType.java =====
+package backend.enums;
+
+public enum MovementType { STOCK_IN, STOCK_OUT, ORDER_DEDUCTION, ORDER_CANCELLATION }
+
+===== android\app\src\main\java\com\bxostock\app\model\OrderRequest.java =====
+package com.bxostock.app.model;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class OrderRequest {
+    public long customerId;
+    public List<Item> items = new ArrayList<>();
+
+    public static class Item {
+        public long productId;
+        public int quantity;
+
+        public Item(long productId, int quantity) {
+            this.productId = productId;
+            this.quantity = quantity;
+        }
+    }
+}
+
+===== backend\src\main\java\backend\dto\OrderRequest.java =====
+package backend.dto;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import java.util.List;
+
+public record OrderRequest(
+        @NotNull(message = "Customer is required") Long customerId,
+        @NotEmpty(message = "Add at least one product") @Valid List<Item> items) {
+
+    public record Item(
+            @NotNull(message = "Product is required") Long productId,
+            @Min(value = 1, message = "Quantity must be at least 1") int quantity) {
+    }
+}
+
+===== android\app\src\main\java\com\bxostock\app\model\OrderResponse.java =====
+package com.bxostock.app.model;
+
+import java.util.List;
+
+public class OrderResponse {
+    public long id;
+    public long customerId;
+    public String customerName;
+    public String createdBy;
+    public String status;
+    public double totalAmount;
+    public String createdAt;
+    public List<OrderLine> items;
+}
+
+===== backend\src\main\java\backend\dto\OrderResponse.java =====
+package backend.dto;
+
+import backend.entity.SalesOrder;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public record OrderResponse(Long id, Long customerId, String customerName, String createdBy,
+                            String status, BigDecimal totalAmount, LocalDateTime createdAt,
+                            List<Line> items) {
+
+    public record Line(Long productId, String productName, String sku, int quantity,
+                       BigDecimal unitPrice, BigDecimal subtotal) {
+    }
+
+    public static OrderResponse from(SalesOrder o) {
+        List<Line> lines = o.getItems().stream()
+                .map(i -> new Line(i.getProduct().getId(), i.getProduct().getName(), i.getProduct().getSku(),
+                        i.getQuantity(), i.getUnitPrice(), i.getSubtotal()))
+                .toList();
+        return new OrderResponse(o.getId(), o.getCustomer().getId(), o.getCustomer().getName(),
+                o.getCreatedBy().getEmail(), o.getStatus().name(), o.getTotalAmount(),
+                o.getCreatedAt(), lines);
+    }
+}
+
+===== backend\src\main\java\backend\controller\OrderController.java =====
+package backend.controller;
+
+import backend.dto.OrderRequest;
+import backend.dto.OrderResponse;
+import backend.service.OrderService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/orders")
+@RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+public class OrderController {
+    private final OrderService service;
+
+    @PostMapping
+    public ResponseEntity<OrderResponse> create(@Valid @RequestBody OrderRequest r, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(r, auth.getName()));
+    }
+
+    @GetMapping
+    public List<OrderResponse> list() { return service.list(); }
+
+    @GetMapping("/{id}")
+    public OrderResponse get(@PathVariable Long id) { return service.get(id); }
+
+    @PostMapping("/{id}/cancel")
+    public OrderResponse cancel(@PathVariable Long id, Authentication auth) {
+        return service.cancel(id, auth.getName());
+    }
+}
+
+===== android\app\src\main\java\com\bxostock\app\model\Product.java =====
+package com.bxostock.app.model;
+
+public class Product {
+    public long id;
+    public String name;
+    public String sku;
+    public String description;
+    public Long categoryId;
+    public String categoryName;
+    public double purchasePrice;
+    public double sellingPrice;
+    public int currentStock;
+    public int minimumStock;
+    public boolean active;
+    public boolean lowStock;
+}
+
+===== backend\src\main\java\backend\entity\Product.java =====
+package backend.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "products")
+@Getter @Setter @NoArgsConstructor
+public class Product {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(nullable = false)
+    private String name;
+    @Column(nullable = false, unique = true)
+    private String sku;
+    private String description;
+    @ManyToOne
+    private Category category;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal purchasePrice;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal sellingPrice;
+    private int currentStock;
+    private int minimumStock;
+    private boolean active = true;
+    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @PreUpdate
+    void touch() { this.updatedAt = LocalDateTime.now(); }
+}
+
+===== backend\src\main\java\backend\service\ProductService.java =====
+package backend.service;
+
+import backend.dto.ProductRequest;
+import backend.dto.ProductResponse;
+import backend.entity.*;
+import backend.enums.MovementType;
+import backend.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class ProductService {
+    private final ProductRepository products;
+    private final CategoryRepository categories;
+    private final StockMovementRepository movements;
+    private final UserRepository users;
+
+    @Transactional(readOnly = true)
+    public List<ProductResponse> list(String keyword) {
+        List<Product> result = (keyword == null || keyword.isBlank())
+                ? products.findByActiveTrueOrderByNameAsc()
+                : products.search(keyword.trim());
+        return result.stream().map(ProductResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse get(Long id) {
+        return ProductResponse.from(find(id));
+    }
+
+    @Transactional
+    public ProductResponse create(ProductRequest r, String email) {
+        String sku = r.sku().trim().toUpperCase();
+        if (products.existsBySkuIgnoreCase(sku))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "SKU already exists");
+        Product p = new Product();
+        apply(p, r, sku);
+        int opening = r.openingStock() == null ? 0 : r.openingStock();
+        p.setCurrentStock(opening);
+        products.save(p);
+        if (opening > 0) {
+            User u = users.findByEmail(email).orElseThrow();
+            movements.save(StockMovement.of(p, u, MovementType.STOCK_IN, opening, 0, opening, "Opening stock"));
+        }
+        return ProductResponse.from(p);
+    }
+
+    @Transactional
+    public ProductResponse update(Long id, ProductRequest r) {
+        Product p = find(id);
+        String sku = r.sku().trim().toUpperCase();
+        if (products.existsBySkuIgnoreCaseAndIdNot(sku, id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "SKU already exists");
+        apply(p, r, sku);
+        return ProductResponse.from(p);
+    }
+
+    @Transactional
+    public void deactivate(Long id) {
+        find(id).setActive(false);
+    }
+
+    private void apply(Product p, ProductRequest r, String sku) {
+        p.setName(r.name().trim());
+        p.setSku(sku);
+        p.setDescription(r.description());
+        p.setPurchasePrice(r.purchasePrice());
+        p.setSellingPrice(r.sellingPrice());
+        p.setMinimumStock(r.minimumStock());
+        p.setCategory(r.categoryId() == null ? null : categories.findById(r.categoryId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found")));
+    }
+
+    private Product find(Long id) {
+        return products.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+    }
+}
+
+===== backend\src\main\java\backend\repository\ProductRepository.java =====
+package backend.repository;
+
+import backend.entity.Product;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.List;
+import java.util.Optional;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    boolean existsBySkuIgnoreCase(String sku);
+    boolean existsBySkuIgnoreCaseAndIdNot(String sku, Long id);
+    List<Product> findByActiveTrueOrderByNameAsc();
+
+    @Query("select p from Product p where p.active = true and (lower(p.name) like lower(concat('%', :kw, '%')) or lower(p.sku) like lower(concat('%', :kw, '%'))) order by p.name")
+    List<Product> search(@Param("kw") String kw);
+
+    @Query("select p from Product p where p.active = true and p.currentStock <= p.minimumStock order by p.currentStock")
+    List<Product> findLowStock();
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findByIdForUpdate(@Param("id") Long id);
+
+    
+    @Query("select count(p) from Product p where p.active = true")
+    long countActive();
+
+    @Query("select coalesce(sum(p.currentStock), 0) from Product p where p.active = true")
+    long totalStock();
+
+    @Query("select count(p) from Product p where p.active = true and p.currentStock <= p.minimumStock")
+    long countLowStock();
+}
+
+===== backend\src\main\java\backend\repository\SalesOrderRepository.java =====
+package backend.repository;
+
+import backend.entity.SalesOrder;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.List;
+import java.util.Optional;
+
+import backend.enums.OrderStatus;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
+    List<SalesOrder> findAllByOrderByCreatedAtDesc();
+    List<SalesOrder> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from SalesOrder o where o.id = :id")
+    Optional<SalesOrder> findByIdForUpdate(@Param("id") Long id);
+
+    
+    long countByStatus(OrderStatus status);
+
+    long countByStatusAndCreatedAtGreaterThanEqual(OrderStatus status, LocalDateTime from);
+
+    @Query("select coalesce(sum(o.totalAmount), 0) from SalesOrder o where o.status = :status")
+    BigDecimal sumTotalByStatus(@Param("status") OrderStatus status);
+
+    List<SalesOrder> findTop5ByOrderByCreatedAtDesc();
+
+    
+    @Query("select count(o) from SalesOrder o where o.status = :status and o.createdAt >= :from and o.createdAt < :to")
+    long countBetween(@Param("status") OrderStatus status, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("select coalesce(sum(o.totalAmount), 0) from SalesOrder o where o.status = :status and o.createdAt >= :from and o.createdAt < :to")
+    BigDecimal sumBetween(@Param("status") OrderStatus status, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+    
+}
+
+===== backend\src\main\java\backend\repository\OrderItemRepository.java =====
+package backend.repository;
+
+import backend.dto.ProductSalesRow;
+import backend.entity.OrderItem;
+import backend.enums.OrderStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
+
+    @Query("select new backend.dto.ProductSalesRow(i.product.id, i.product.name, i.product.sku, sum(i.quantity), sum(i.subtotal)) " +
+           "from OrderItem i where i.order.status = :status and i.order.createdAt >= :from and i.order.createdAt < :to " +
+           "group by i.product.id, i.product.name, i.product.sku order by sum(i.subtotal) desc")
+    List<ProductSalesRow> salesByProduct(@Param("status") OrderStatus status,
+                                         @Param("from") LocalDateTime from,
+                                         @Param("to") LocalDateTime to);
+}
+
+===== web\src\pages\Orders.jsx =====
+import { useEffect, useState } from "react";
+import api from "../api";
+import SearchSelect from "../components/SearchSelect";
+import { useConfirm } from "../confirmContext";
+import { billPdf } from "../pdfReports";
+
+function errText(err) {
+  if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
+  const d = err.response.data;
+  if (d?.errors) return Object.entries(d.errors).map(([f, m]) => `${f}: ${m}`).join(", ");
+  return d?.message || "Something went wrong.";
+}
+
+const money = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
+const when = (s) => (s ? new Date(s).toLocaleString("en-IN") : "-");
+const emptyRow = { productId: "", quantity: "1" };
+
+function StatusBadge({ status }) {
+  return (
+    <span className={"badge " + (status === "CONFIRMED" ? "bg-success" : "bg-secondary")}>
+      {status}
+    </span>
+  );
+}
+
+export default function Orders() {
+      const confirm = useConfirm();
+  const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const [view, setView] = useState(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [customerId, setCustomerId] = useState("");
+  const [rows, setRows] = useState([emptyRow]);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    api.get("/orders")
+      .then((r) => { if (!ignore) { setOrders(r.data); setError(""); } })
+      .catch((err) => { if (!ignore) setError(errText(err)); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    api.get("/products")
+      .then((r) => { if (!ignore) setProducts(r.data.filter((p) => p.active !== false)); })
+      .catch(() => {});
+    return () => { ignore = true; };
+  }, [refreshKey]);
+
+  useEffect(() => {
+    api.get("/customers").then((r) => setCustomers(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  async function undo() {
+    const id = toast.undoId;
+    setToast(null);
+    try {
+      await api.post(`/orders/${id}/cancel`);
+      setToast({ text: `Order #${id} undone. Stock restored.` });
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setError(errText(err));
+    }
+  }
+
+  // live search + status filter (newest first)
+  const kw = keyword.trim().toLowerCase();
+  const shown = [...orders]
+    .sort((a, b) => b.id - a.id)
+    .filter((o) => !statusFilter || o.status === statusFilter)
+    .filter(
+      (o) =>
+        !kw ||
+        String(o.id).includes(kw) ||
+        (o.customerName || "").toLowerCase().includes(kw) ||
+        (o.createdBy || "").toLowerCase().includes(kw)
+    );
+
+  function openCreate() {
+    setCustomerId("");
+    setRows([emptyRow]);
+    setFormError("");
+    setCreateOpen(true);
+  }
+
+  function setRow(i, field, value) {
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+  }
+
+  const productById = (id) => products.find((p) => String(p.id) === String(id));
+  const estimate = rows.reduce((sum, r) => {
+    const p = productById(r.productId);
+    return sum + (p ? Number(p.sellingPrice) * Number(r.quantity || 0) : 0);
+  }, 0);
+
+  async function create(e) {
+    e.preventDefault();
+    setFormError("");
+    if (!customerId) {
+      setFormError("Select a customer.");
+      return;
+    }
+    const items = rows
+      .filter((r) => r.productId !== "")
+      .map((r) => ({ productId: Number(r.productId), quantity: Number(r.quantity) }));
+    if (items.length === 0) {
+      setFormError("Add at least one product.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.post("/orders", { customerId: Number(customerId), items });
+      setCreateOpen(false);
+      setToast({ text: `Order #${res.data.id} placed · ${money(res.data.totalAmount)}`, undoId: res.data.id });
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setFormError(errText(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+    async function cancel(o) {
+    const ok = await confirm({
+      title: "Cancel order",
+      message: `Cancel order #${o.id}? The stock will be restored.`,
+      confirmText: "Cancel order",
+      cancelText: "Keep order",
+      danger: true,
+    });
+    if (!ok) return;
+    setError("");
+    try {
+      const res = await api.post(`/orders/${o.id}/cancel`);
+      setToast({ text: `Order #${o.id} cancelled. Stock restored.` });
+      if (view && view.id === o.id) setView(res.data);
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setError(err.response?.status === 409 ? "This order is already cancelled." : errText(err));
+    }
+  }
+
+  return (
+    <div>
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <h2 className="m-0">Orders</h2>
+        <button className="btn btn-accent" onClick={openCreate}>+ New order</button>
+      </div>
+
+      <div className="d-flex flex-wrap gap-2 mb-3">
+        <input
+          type="search"
+          inputMode="search"
+          enterKeyHint="search"
+          className="form-control flex-grow-1"
+          style={{ minWidth: 200, flexBasis: 240 }}
+          placeholder="Search by order no, customer or staff"
+          autoComplete="off"
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+        />
+        <select
+          className="form-select form-control"
+          style={{ width: "auto" }}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="">All statuses</option>
+          <option value="CONFIRMED">Confirmed</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+      </div>
+
+      {error && <div className="alert alert-danger py-2">{error}</div>}
+      {loading && <p className="text-secondary">Loading...</p>}
+      {!loading && !error && shown.length === 0 && <p className="text-secondary">No orders found.</p>}
+
+      {/* Table: tablets and larger */}
+      {shown.length > 0 && (
+        <div className="table-responsive d-none d-md-block">
+          <table className="table table-dark align-middle">
+            <thead>
+              <tr>
+                <th>Order</th><th>Date</th><th>Customer</th><th>By</th>
+                <th>Status</th><th className="text-end">Total</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((o) => (
+                <tr key={o.id}>
+                  <td>#{o.id}</td>
+                  <td className="text-nowrap">{when(o.createdAt)}</td>
+                  <td>{o.customerName}</td>
+                  <td>{o.createdBy}</td>
+                  <td><StatusBadge status={o.status} /></td>
+                  <td className="text-end">{money(o.totalAmount)}</td>
+                  <td className="text-end text-nowrap">
+                    <button className="btn btn-sm btn-outline-light me-2" onClick={() => setView(o)}>View</button>
+                    <button className="btn btn-sm btn-outline-light me-2" onClick={() => billPdf(o)}>Bill PDF</button>
+                    {o.status === "CONFIRMED" && (
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => cancel(o)}>Cancel</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Cards: phones */}
+      <div className="d-md-none">
+        {shown.map((o) => (
+          <div className="product-card" key={o.id}>
+            <div className="d-flex justify-content-between">
+              <strong>Order #{o.id}</strong>
+              <StatusBadge status={o.status} />
+            </div>
+            <div className="text-secondary small">{when(o.createdAt)}</div>
+            <div className="mt-2">{o.customerName}</div>
+            <div className="d-flex justify-content-between mt-1">
+              <span className="text-secondary small">By {o.createdBy}</span>
+              <strong>{money(o.totalAmount)}</strong>
+            </div>
+            <div className="d-flex gap-2 mt-3">
+              <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => setView(o)}>View</button>
+              <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => billPdf(o)}>Bill PDF</button>
+              {o.status === "CONFIRMED" && (
+                <button className="btn btn-sm btn-outline-danger flex-fill" onClick={() => cancel(o)}>Cancel</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* View order */}
+      {view && (
+        <>
+          <div className="modal d-block" tabIndex="-1">
+            <div className="modal-dialog modal-dialog-scrollable">
+              <div className="modal-content app-modal">
+                <div className="modal-header">
+                  <h5 className="modal-title">Order #{view.id}</h5>
+                  <button type="button" className="btn-close btn-close-white" onClick={() => setView(null)} />
+                </div>
+                <div className="modal-body">
+                  <div className="d-flex justify-content-between mb-2">
+                    <span>{view.customerName}</span>
+                    <StatusBadge status={view.status} />
+                  </div>
+                  <div className="text-secondary small mb-3">{when(view.createdAt)} · By {view.createdBy}</div>
+                  {view.items.map((l, i) => (
+                    <div className="d-flex justify-content-between border-top py-2" style={{ borderColor: "var(--border)" }} key={i}>
+                      <div>
+                        {l.productName}
+                        <div className="text-secondary small">{l.sku} · {l.quantity} × {money(l.unitPrice)}</div>
+                      </div>
+                      <strong>{money(l.subtotal)}</strong>
+                    </div>
+                  ))}
+                  <div className="d-flex justify-content-between border-top pt-2 mt-1" style={{ borderColor: "var(--border)" }}>
+                    <strong>Total</strong>
+                    <strong>{money(view.totalAmount)}</strong>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  {view.status === "CONFIRMED" && (
+                    <button className="btn btn-outline-danger" onClick={() => cancel(view)}>Cancel order</button>
+                  )}
+                  <button className="btn btn-outline-light" onClick={() => billPdf(view)}>Bill PDF</button>
+                  <button className="btn btn-outline-light" onClick={() => setView(null)}>Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop show"></div>
+        </>
+      )}
+
+      {/* New order */}
+      {createOpen && (
+        <>
+          <div className="modal d-block" tabIndex="-1">
+            <div className="modal-dialog modal-lg modal-dialog-scrollable">
+              <form className="modal-content app-modal" onSubmit={create}>
+                <div className="modal-header">
+                  <h5 className="modal-title">New order</h5>
+                  <button type="button" className="btn-close btn-close-white" onClick={() => setCreateOpen(false)} />
+                </div>
+                <div className="modal-body" style={{ minHeight: 320 }}>
+                  {formError && <div className="alert alert-danger py-2">{formError}</div>}
+
+                  <label className="form-label">Customer</label>
+                  <div className="mb-3">
+                    <SearchSelect
+                      placeholder="Type to find a customer"
+                      value={customerId}
+                      onChange={setCustomerId}
+                      options={customers.map((c) => ({
+                        value: c.id,
+                        label: c.name + (c.phone ? ` (${c.phone})` : ""),
+                      }))}
+                    />
+                  </div>
+
+                  <label className="form-label">Products</label>
+                  {rows.map((r, i) => (
+                    <div className="d-flex flex-wrap gap-2 mb-2" key={i}>
+                      <div className="flex-grow-1" style={{ flexBasis: 220 }}>
+                        <SearchSelect
+                          placeholder="Type to find a product"
+                          value={r.productId}
+                          onChange={(v) => setRow(i, "productId", v)}
+                          options={products.map((p) => ({
+                            value: p.id,
+                            label: `${p.name} (${p.sku}) · ${money(p.sellingPrice)} · stock ${p.currentStock}`,
+                            disabled: rows.some((x, idx) => idx !== i && String(x.productId) === String(p.id)),
+                          }))}
+                        />
+                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        className="form-control"
+                        style={{ width: 90 }}
+                        value={r.quantity}
+                        onChange={(e) => setRow(i, "quantity", e.target.value)}
+                      />
+                      {rows.length > 1 && (
+                        <button type="button" className="btn btn-outline-danger" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}>
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" className="btn btn-sm btn-outline-light mt-1" onClick={() => setRows([...rows, emptyRow])}>
+                    + Add another product
+                  </button>
+
+                  <div className="d-flex justify-content-between mt-4">
+                    <span className="text-secondary">Estimated total</span>
+                    <strong>{money(estimate)}</strong>
+                  </div>
+                  <div className="text-secondary small">The final price is set by the server.</div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-light" onClick={() => setCreateOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-accent" disabled={saving}>
+                    {saving ? "Placing order..." : "Place order"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div className="modal-backdrop show"></div>
+        </>
+      )}
+
+      {/* Popup with Undo */}
+      {toast && (
+        <div className="toast-box">
+          <span>{toast.text}</span>
+          {toast.undoId && (
+            <button className="btn btn-sm btn-accent" onClick={undo}>Undo</button>
+          )}
+          <button className="btn btn-sm btn-outline-light" onClick={() => setToast(null)}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+===== android\app\src\main\java\com\bxostock\app\OrdersFragment.java =====
+package com.bxostock.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+
+import com.bxostock.app.api.ApiClient;
+import com.bxostock.app.model.OrderLine;
+import com.bxostock.app.model.OrderResponse;
+import com.bxostock.app.util.ApiError;
+import com.bxostock.app.util.Fmt;
+import com.bxostock.app.util.PdfExporter;
+import com.bxostock.app.util.Session;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
+
+import java.util.Collections;
+import java.util.List;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class OrdersFragment extends BaseListFragment<OrderResponse> {
+    private final ActivityResultLauncher<Intent> newOrder = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                Intent d = result.getData();
+                if (result.getResultCode() == Activity.RESULT_OK && d != null && getView() != null) {
+                    final long id = d.getLongExtra("orderId", -1);
+                    double total = d.getDoubleExtra("total", 0);
+                    Snackbar.make(getView(), "Order #" + id + " placed \u00B7 " + Fmt.money(total),
+                                    Snackbar.LENGTH_LONG)
+                            .setAction("UNDO", x -> cancel(id, "Order #" + id + " undone. Stock restored."))
+                            .show();
+                }
+            });
+
+    @Override protected String searchHint() { return "Search order no., customer or staff"; }
+    @Override protected String actionLabel() { return "New order"; }
+    @Override protected String filterLabel() { return "Hide cancelled orders"; }
+
+    @Override
+    protected void onAction() {
+        newOrder.launch(new Intent(requireContext(), NewOrderActivity.class));
+    }
+
+    @Override
+    protected Call<List<OrderResponse>> request(String kw) {
+        return ApiClient.get(requireContext()).orders();
+    }
+
+    @Override
+    protected boolean matches(OrderResponse o, String k) {
+        if (cbFilter.isChecked() && "CANCELLED".equals(o.status)) return false;
+        if (k.isEmpty()) return true;
+        String hay = (o.id + " " + o.customerName + " " + o.createdBy).toLowerCase();
+        return hay.contains(k);
+    }
+
+    @Override
+    protected void sort(List<OrderResponse> items) {
+        Collections.sort(items, (a, b) -> Long.compare(b.id, a.id));
+    }
+
+    @Override
+    protected Row toRow(OrderResponse o) {
+        Row r = new Row();
+        r.title = "#" + o.id + " \u00B7 " + o.customerName;
+        r.sub = Fmt.date(o.createdAt);
+        r.right = Fmt.money(o.totalAmount);
+        r.rightSub = o.status;
+        r.warn = "CANCELLED".equals(o.status);
+        return r;
+    }
+
+    @Override
+    protected void onItemClick(final OrderResponse o) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Customer: ").append(o.customerName)
+                .append("\nStatus: ").append(o.status)
+                .append("\nDate: ").append(Fmt.date(o.createdAt))
+                .append("\nBy: ").append(o.createdBy).append("\n\n");
+        if (o.items != null) {
+            for (OrderLine l : o.items) {
+                sb.append(l.quantity).append(" \u00D7 ").append(l.productName)
+                        .append("   ").append(Fmt.money(l.subtotal)).append("\n");
+            }
+        }
+        sb.append("\nTotal: ").append(Fmt.money(o.totalAmount));
+        MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Order #" + o.id)
+                .setMessage(sb.toString())
+                .setPositiveButton("Close", null);
+        if ("CONFIRMED".equals(o.status)) {
+            b.setNegativeButton("Cancel order", (d, w) -> confirmCancel(o));
+        }
+        b.setNeutralButton("Bill PDF", (d, w) -> exportBill(o));
+        b.show();
+    }
+
+    private void exportBill(OrderResponse o) {
+        PdfExporter.Table t = new PdfExporter.Table();
+        t.title = "Bill #" + o.id;
+        t.subtitle = "Supermarket bill";
+        t.summary.add(new String[]{"Customer", o.customerName == null ? "-" : o.customerName});
+        t.summary.add(new String[]{"Date", Fmt.date(o.createdAt)});
+        t.summary.add(new String[]{"Served by", o.createdBy == null ? "-" : o.createdBy});
+        t.summary.add(new String[]{"Status", o.status == null ? "-" : o.status});
+        t.headers = new String[]{"Item", "Qty", "Rate", "Amount"};
+        t.weights = new float[]{5f, 1f, 2f, 2.5f};
+        t.right = new boolean[]{false, true, true, true};
+        if (o.items != null) {
+            for (OrderLine l : o.items) {
+                t.rows.add(new String[]{l.productName, String.valueOf(l.quantity),
+                        Fmt.money(l.unitPrice), Fmt.money(l.subtotal)});
+            }
+        }
+        t.rows.add(new String[]{"TOTAL", "", "", Fmt.money(o.totalAmount)});
+        PdfExporter.export(requireActivity(), "bill_order_" + o.id + ".pdf", t);
+    }
+
+    private void confirmCancel(final OrderResponse o) {
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Cancel order #" + o.id + "?")
+                .setMessage("The stock will be put back.")
+                .setNegativeButton("Keep order", null)
+                .setPositiveButton("Cancel order", (d, w) ->
+                        cancel(o.id, "Order #" + o.id + " cancelled. Stock restored."))
+                .show();
+    }
+
+    private void cancel(long id, final String okMessage) {
+        ApiClient.get(requireContext()).cancelOrder(id).enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> c, Response<ResponseBody> r) {
+                if (!isAdded()) return;
+                if (r.isSuccessful()) {
+                    Toast.makeText(requireContext(), okMessage, Toast.LENGTH_SHORT).show();
+                    reload();
+                } else if (r.code() == 401) {
+                    Session.expire(requireActivity(), true);
+                } else {
+                    Toast.makeText(requireContext(), ApiError.message(r), Toast.LENGTH_LONG).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> c, Throwable t) {
+                if (isAdded()) Toast.makeText(requireContext(), ApiError.NETWORK, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+}
+
+===== android\app\src\main\java\com\bxostock\app\NewOrderActivity.java =====
+package com.bxostock.app;
+
+import android.content.Intent;
+import android.os.Bundle;
+import android.view.View;
+import android.widget.AutoCompleteTextView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.bxostock.app.api.ApiClient;
+import com.bxostock.app.model.Customer;
+import com.bxostock.app.model.OrderRequest;
+import com.bxostock.app.model.OrderResponse;
+import com.bxostock.app.model.Product;
+import com.bxostock.app.util.ApiError;
+import com.bxostock.app.util.Fmt;
+import com.bxostock.app.util.Picker;
+import com.bxostock.app.util.Session;
+import com.bxostock.app.util.TokenStore;
+import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.textfield.TextInputEditText;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class NewOrderActivity extends AppCompatActivity {
+    private static class Line {
+        Product p;
+        int qty;
+    }
+
+    private Picker<Customer> customerPicker;
+    private Picker<Product> productPicker;
+    private TextInputEditText etQty;
+    private TextView tvStock, tvEmpty, tvTotal, tvMessage;
+    private LinearLayout cartBox;
+    private View btnPlace;
+    private final List<Line> cart = new ArrayList<>();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (!TokenStore.isLoggedIn(this)) {
+            Session.expire(this, false);
+            return;
+        }
+        setContentView(R.layout.activity_new_order);
+        ((MaterialToolbar) findViewById(R.id.toolbar)).setNavigationOnClickListener(v -> finish());
+        etQty = findViewById(R.id.etQty);
+        tvStock = findViewById(R.id.tvStock);
+        tvEmpty = findViewById(R.id.tvEmpty);
+        tvTotal = findViewById(R.id.tvTotal);
+        tvMessage = findViewById(R.id.tvMessage);
+        cartBox = findViewById(R.id.cartBox);
+        btnPlace = findViewById(R.id.btnPlace);
+
+        customerPicker = new Picker<Customer>((AutoCompleteTextView) findViewById(R.id.acCustomer), null);
+        productPicker = new Picker<>((AutoCompleteTextView) findViewById(R.id.acProduct),
+                p -> tvStock.setText("In stock: " + p.currentStock + " \u00B7 " + Fmt.money(p.sellingPrice)));
+
+        findViewById(R.id.btnAdd).setOnClickListener(v -> addLine());
+        findViewById(R.id.btnClear).setOnClickListener(v -> {
+            cart.clear();
+            render();
+        });
+        btnPlace.setOnClickListener(v -> place());
+        render();
+        loadCustomers();
+        loadProducts();
+    }
+
+    private void loadCustomers() {
+        ApiClient.get(this).customers(null).enqueue(new Callback<List<Customer>>() {
+            @Override
+            public void onResponse(Call<List<Customer>> c, Response<List<Customer>> r) {
+                if (!r.isSuccessful() || r.body() == null) {
+                    fail(r);
+                    return;
+                }
+                customerPicker.set(r.body(), cu -> cu.name + (cu.phone == null || cu.phone.isEmpty() ? "" : " (" + cu.phone + ")"));
+                if (r.body().isEmpty()) err("No customers yet. Add a customer first.");
+            }
+
+            @Override
+            public void onFailure(Call<List<Customer>> c, Throwable t) {
+                err(ApiError.NETWORK);
+            }
+        });
+    }
+
+    private void loadProducts() {
+        ApiClient.get(this).products(null).enqueue(new Callback<List<Product>>() {
+            @Override
+            public void onResponse(Call<List<Product>> c, Response<List<Product>> r) {
+                if (!r.isSuccessful() || r.body() == null) {
+                    fail(r);
+                    return;
+                }
+                List<Product> active = new ArrayList<>();
+                for (Product p : r.body()) if (p.active) active.add(p);
+                productPicker.set(active, p -> p.sku + " \u00B7 " + p.name + " \u00B7 "
+                        + Fmt.money(p.sellingPrice) + " \u00B7 stock " + p.currentStock);
+            }
+
+            @Override
+            public void onFailure(Call<List<Product>> c, Throwable t) {
+                err(ApiError.NETWORK);
+            }
+        });
+    }
+
+    private void addLine() {
+        tvMessage.setVisibility(View.GONE);
+        Product p = productPicker.selected();
+        if (p == null) {
+            err("Choose a product from the list.");
+            return;
+        }
+        int qty = parse(etQty.getText().toString().trim());
+        if (qty < 1) {
+            err("Enter a quantity of at least 1.");
+            return;
+        }
+        Line existing = null;
+        for (Line l : cart) if (l.p.id == p.id) existing = l;
+        int total = qty + (existing == null ? 0 : existing.qty);
+        if (total > p.currentStock) {
+            err("Only " + p.currentStock + " of " + p.name + " in stock.");
+            return;
+        }
+        if (existing != null) {
+            existing.qty = total;
+        } else {
+            Line l = new Line();
+            l.p = p;
+            l.qty = qty;
+            cart.add(l);
+        }
+        etQty.setText("");
+        productPicker.clear();
+        tvStock.setText("");
+        render();
+    }
+
+    private void render() {
+        cartBox.removeAllViews();
+        if (cart.isEmpty()) {
+            tvEmpty.setVisibility(View.VISIBLE);
+            tvTotal.setText("");
+            return;
+        }
+        tvEmpty.setVisibility(View.GONE);
+        double sum = 0;
+        for (final Line l : cart) {
+            View v = getLayoutInflater().inflate(R.layout.item_cart, cartBox, false);
+            double sub = l.p.sellingPrice * l.qty;
+            sum += sub;
+            ((TextView) v.findViewById(R.id.tvName)).setText(l.p.name);
+            ((TextView) v.findViewById(R.id.tvDetail)).setText(l.qty + " \u00D7 " + Fmt.money(l.p.sellingPrice));
+            ((TextView) v.findViewById(R.id.tvSub)).setText(Fmt.money(sub));
+            v.findViewById(R.id.btnRemove).setOnClickListener(x -> {
+                cart.remove(l);
+                render();
+            });
+            cartBox.addView(v);
+        }
+        tvTotal.setText("Total (estimate): " + Fmt.money(sum));
+    }
+
+    private void place() {
+        tvMessage.setVisibility(View.GONE);
+        Customer cu = customerPicker.selected();
+        if (cu == null) {
+            err("Choose a customer from the list.");
+            return;
+        }
+        if (cart.isEmpty()) {
+            err("Add at least one product.");
+            return;
+        }
+        OrderRequest req = new OrderRequest();
+        req.customerId = cu.id;
+        for (Line l : cart) req.items.add(new OrderRequest.Item(l.p.id, l.qty));
+        btnPlace.setEnabled(false);
+        ApiClient.get(this).placeOrder(req).enqueue(new Callback<OrderResponse>() {
+            @Override
+            public void onResponse(Call<OrderResponse> c, Response<OrderResponse> r) {
+                btnPlace.setEnabled(true);
+                if (r.isSuccessful() && r.body() != null) {
+                    Intent data = new Intent();
+                    data.putExtra("orderId", r.body().id);
+                    data.putExtra("total", r.body().totalAmount);
+                    setResult(RESULT_OK, data);
+                    finish();
+                } else {
+                    fail(r);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<OrderResponse> c, Throwable t) {
+                btnPlace.setEnabled(true);
+                err(ApiError.NETWORK);
+            }
+        });
+    }
+
+    private int parse(String s) {
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private void fail(Response<?> r) {
+        if (r.code() == 401) Session.expire(this, true);
+        else err(ApiError.message(r));
+    }
+
+    private void err(String msg) {
+        tvMessage.setText(msg);
+        tvMessage.setVisibility(View.VISIBLE);
+    }
+}
+
+===== GIT STATUS (shows what Billing changed) =====
+ M android/app/src/main/java/com/bxostock/app/MainActivity.java
+ M android/app/src/main/java/com/bxostock/app/UsersFragment.java
+ M android/app/src/main/java/com/bxostock/app/api/ApiService.java
+ M android/app/src/main/res/layout/activity_main.xml
+ M web/src/App.jsx
+ M web/src/components/Layout.jsx
+ M web/src/pages/Users.jsx
+?? android/app/src/main/java/com/bxostock/app/ProfileFragment.java
+?? android/app/src/main/java/com/bxostock/app/StaffPerformanceFragment.java
+?? android/app/src/main/java/com/bxostock/app/model/ChangePasswordRequest.java
+?? android/app/src/main/java/com/bxostock/app/model/ResetPasswordRequest.java
+?? android/app/src/main/res/layout/fragment_profile.xml
+?? android/app/src/main/res/layout/fragment_staff.xml
+?? backend/src/main/java/backend/controller/AccountController.java
+?? backend/src/main/java/backend/controller/AdminPasswordController.java
+?? handoff-files.txt
+?? web/src/components/ResetPasswordModal.jsx
+?? web/src/pages/Profile.jsx
+?? web/src/pages/StaffPerformance.jsx
+d0450bd before modules
+ android/.gitignore                                 |  15 +
+ android/app/.gitignore                             |   1 +
+ android/app/build.gradle                           |  48 +++
+ .../com/bxostock/app/ExampleInstrumentedTest.java  |  26 ++
+ android/app/src/main/AndroidManifest.xml           |  42 +++
+ .../java/com/bxostock/app/AuditLogsFragment.java   |  57 ++++
+ .../main/java/com/bxostock/app/BarChartView.java   | 160 ++++++++++
+ .../java/com/bxostock/app/BaseListFragment.java    | 167 +++++++++++
+ .../java/com/bxostock/app/CategoriesFragment.java  |  86 ++++++
+ .../java/com/bxostock/app/CustomersFragment.java   | 114 +++++++
+ .../java/com/bxostock/app/DashboardFragment.java   | 201 +++++++++++++
+ .../main/java/com/bxostock/app/LoginActivity.java  | 147 +++++++++
+ .../main/java/com/bxostock/app/MainActivity.java   | 145 +++++++++
+ .../main/java/com/bxostock/app/MoreFragment.java   |  42 +++
+ .../java/com/bxostock/app/NewOrderActivity.java    | 231 ++++++++++++++
+ .../main/java/com/bxostock/app/OrdersFragment.java | 157 ++++++++++
+ .../java/com/bxostock/app/ProductsFragment.java    | 228 ++++++++++++++
+ .../java/com/bxostock/app/ReportsFragment.java     | 331 +++++++++++++++++++++
+ .../app/src/main/java/com/bxostock/app/Row.java    |  10 +
+ .../src/main/java/com/bxostock/app/RowAdapter.java |  60 ++++
+ .../main/java/com/bxostock/app/SalesSection.java   | 329 ++++++++++++++++++++
+ .../main/java/com/bxostock/app/StockFragment.java  | 149 ++++++++++
+ .../main/java/com/bxostock/app/UsersFragment.java  | 153 ++++++++++
+ .../main/java/com/bxostock/app/api/ApiClient.java  |  45 +++
+ .../main/java/com/bxostock/app/api/ApiService.java | 114 +++++++
+ .../main/java/com/bxostock/app/model/AuditLog.java |  10 +
+ .../com/bxostock/app/model/CaptchaResponse.java    |   6 +
+ .../main/java/com/bxostock/app/model/Category.java |   7 +
+ .../com/bxostock/app/model/CategoryRequest.java    |   6 +
+ .../com/bxostock/app/model/CreateUserRequest.java  |   8 +
+ .../main/java/com/bxostock/app/model/Customer.java |   9 +
+ .../com/bxostock/app/model/CustomerRequest.java    |   8 +
+ .../com/bxostock/app/model/DashboardResponse.java  |  15 +
+ .../com/bxostock/app/model/InventoryReport.java    |  12 +
+ .../java/com/bxostock/app/model/LoginRequest.java  |  13 +
+ .../java/com/bxostock/app/model/LoginResponse.java |   9 +
+ .../java/com/bxostock/app/model/OrderLine.java     |  10 +
+ .../java/com/bxostock/app/model/OrderRequest.java  |  19 ++
+ .../java/com/bxostock/app/model/OrderResponse.java |  14 +
+ .../main/java/com/bxostock/app/model/Product.java  |  16 +
+ .../com/bxostock/app/model/ProductRequest.java     |  12 +
+ .../com/bxostock/app/model/ProductSalesRow.java    |   9 +
+ .../java/com/bxostock/app/model/SalesReport.java   |  12 +
+ .../java/com/bxostock/app/model/StockRequest.java  |   7 +
+ .../java/com/bxostock/app/model/UserResponse.java  |   9 +
+ .../main/java/com/bxostock/app/util/ApiError.java  |  33 ++
+ .../src/main/java/com/bxostock/app/util/Fmt.java   |  19 ++
+ .../java/com/bxostock/app/util/PdfExporter.java    | 221 ++++++++++++++
+ .../main/java/com/bxostock/app/util/Picker.java    |  48 +++
+ .../main/java/com/bxostock/app/util/Session.java   |  20 ++
+ .../java/com/bxostock/app/util/TokenStore.java     |  22 ++
+ android/app/src/main/keepRules/rules.keep          |  12 +
+ android/app/src/main/res/drawable/ic_back.xml      |   4 +
+ android/app/src/main/res/drawable/ic_home.xml      |   4 +
+ .../main/res/drawable/ic_launcher_background.xml   | 170 +++++++++++
+ .../app/src/main/res/drawable/ic_launcher_bg.xml   |   4 +
+ .../app/src/main/res/drawable/ic_launcher_fg.xml   |   4 +
+ .../main/res/drawable/ic_launcher_foreground.xml   |  30 ++
+ android/app/src/main/res/drawable/ic_logout.xml    |   4 +
+ android/app/src/main/res/drawable/ic_menu.xml      |   4 +
+ android/app/src/main/res/drawable/ic_orders.xml    |   4 +
+ android/app/src/main/res/drawable/ic_people.xml    |   4 +
+ android/app/src/main/res/drawable/ic_products.xml  |   4 +
+ android/app/src/main/res/drawable/ic_search.xml    |   4 +
+ android/app/src/main/res/drawable/ic_stock.xml     |   4 +
+ android/app/src/main/res/drawable/logo_full.png    | Bin 0 -> 475534 bytes
+ android/app/src/main/res/drawable/logo_icon.png    | Bin 0 -> 685102 bytes
+ android/app/src/main/res/layout/activity_login.xml | 105 +++++++
+ android/app/src/main/res/layout/activity_main.xml  | 186 ++++++++++++
+ .../app/src/main/res/layout/activity_new_order.xml |  89 ++++++
+ .../app/src/main/res/layout/dialog_category.xml    |  24 ++
+ .../app/src/main/res/layout/dialog_customer.xml    |  42 +++
+ android/app/src/main/res/layout/dialog_product.xml |  88 ++++++
+ android/app/src/main/res/layout/dialog_user.xml    |  46 +++
+ .../app/src/main/res/layout/fragment_dashboard.xml |  44 +++
+ android/app/src/main/res/layout/fragment_list.xml  |  75 +++++
+ .../app/src/main/res/layout/fragment_reports.xml   |  83 ++++++
+ android/app/src/main/res/layout/fragment_stock.xml |  63 ++++
+ android/app/src/main/res/layout/item_cart.xml      |  25 ++
+ android/app/src/main/res/layout/item_row.xml       |  45 +++
+ android/app/src/main/res/layout/item_stat.xml      |  22 ++
+ android/app/src/main/res/layout/item_top.xml       |  29 ++
+ android/app/src/main/res/layout/section_sales.xml  | 154 ++++++++++
+ android/app/src/main/res/menu/bottom_nav.xml       |   8 +
+ android/app/src/main/res/menu/main_menu.xml        |   6 +
+ .../src/main/res/mipmap-anydpi-v26/ic_launcher.xml |   5 +
+ .../res/mipmap-anydpi-v26/ic_launcher_round.xml    |   5 +
+ .../app/src/main/res/mipmap-hdpi/ic_launcher.png   | Bin 0 -> 3279 bytes
+ .../src/main/res/mipmap-hdpi/ic_launcher_round.png | Bin 0 -> 3897 bytes
+ .../app/src/main/res/mipmap-mdpi/ic_launcher.png   | Bin 0 -> 1773 bytes
+ .../src/main/res/mipmap-mdpi/ic_launcher_round.png | Bin 0 -> 2247 bytes
+ .../app/src/main/res/mipmap-xhdpi/ic_launcher.png  | Bin 0 -> 5092 bytes
+ .../main/res/mipmap-xhdpi/ic_launcher_round.png    | Bin 0 -> 5928 bytes
+ .../app/src/main/res/mipmap-xxhdpi/ic_launcher.png | Bin 0 -> 9466 bytes
+ .../main/res/mipmap-xxhdpi/ic_launcher_round.png   | Bin 0 -> 10634 bytes
+ .../src/main/res/mipmap-xxxhdpi/ic_launcher.png    | Bin 0 -> 14343 bytes
+ .../main/res/mipmap-xxxhdpi/ic_launcher_round.png  | Bin 0 -> 15972 bytes
+ android/app/src/main/res/values/colors.xml         |   5 +
+ android/app/src/main/res/values/strings.xml        |   3 +
+ android/app/src/main/res/values/themes.xml         |  16 +
+ android/app/src/main/res/xml/backup_rules.xml      |  13 +
+ .../app/src/main/res/xml/data_extraction_rules.xml |  19 ++
+ android/app/src/main/res/xml/file_paths.xml        |   4 +
+ .../java/com/bxostock/app/ExampleUnitTest.java     |  17 ++
+ android/build.gradle                               |   4 +
+ android/gradle.properties                          |  17 ++
+ android/gradle/gradle-daemon-jvm.properties        |  12 +
+ android/gradle/libs.versions.toml                  |  22 ++
+ android/gradle/wrapper/gradle-wrapper.jar          | Bin 0 -> 45457 bytes
+ android/gradle/wrapper/gradle-wrapper.properties   |   8 +
+ android/gradlew                                    | 251 ++++++++++++++++
+ android/gradlew.bat                                |  94 ++++++
+ android/settings.gradle                            |  26 ++
+ 113 files changed, 5543 insertions(+)
+9348f58 Add printable bill PDF for orders
+ web/src/pages/Orders.jsx |  4 +++
+ web/src/pdfReports.js    | 63 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 67 insertions(+)
+472fb3c Add vercel.json
+ web/vercel.json | 3 +++
+ 1 file changed, 3 insertions(+)
+415aeb5 Add BxoStock web app
+ .../backend/controller/AuditLogController.java     |   40 +-
+ web/.gitignore                                     |   24 +
+ web/README.md                                      |   16 +
+ web/eslint.config.js                               |   21 +
+ web/index.html                                     |   13 +
+ web/package-lock.json                              | 3620 ++++++++++++++++++++
+ web/package.json                                   |   33 +
+ web/public/favicon.png                             |  Bin 0 -> 546270 bytes
+ web/public/logo-full.png                           |  Bin 0 -> 475534 bytes
+ web/public/logo-icon.png                           |  Bin 0 -> 685102 bytes
+ web/public/logo.png                                |  Bin 0 -> 1186685 bytes
+ web/src/App.css                                    |  184 +
+ web/src/App.jsx                                    |   41 +
+ web/src/api.js                                     |   25 +
+ web/src/assets/hero.png                            |  Bin 0 -> 13057 bytes
+ web/src/assets/react.svg                           |    1 +
+ web/src/assets/vite.svg                            |    1 +
+ web/src/components/Brand.jsx                       |   11 +
+ web/src/components/ConfirmProvider.jsx             |   57 +
+ web/src/components/Layout.jsx                      |   83 +
+ web/src/components/SalesCharts.jsx                 |  285 ++
+ web/src/components/SearchSelect.jsx                |   50 +
+ web/src/confirmContext.js                          |    7 +
+ web/src/index.css                                  |  437 +++
+ web/src/main.jsx                                   |   17 +
+ web/src/pages/AuditLogs.jsx                        |  102 +
+ web/src/pages/Categories.jsx                       |  144 +
+ web/src/pages/Customers.jsx                        |  180 +
+ web/src/pages/Dashboard.jsx                        |  110 +
+ web/src/pages/Inventory.jsx                        |  236 ++
+ web/src/pages/Login.jsx                            |  180 +
+ web/src/pages/Orders.jsx                           |  380 ++
+ web/src/pages/Products.jsx                         |  283 ++
+ web/src/pages/Reports.jsx                          |  259 ++
+ web/src/pages/Users.jsx                            |  223 ++
+ web/src/pdfReports.js                              |  106 +
+ web/src/useDebounce.js                             |   10 +
+ web/vite.config.js                                 |    7 +
+ 38 files changed, 7166 insertions(+), 20 deletions(-)
+6f88da2 Add Dockerfile for Render deployment
+ backend/Dockerfile | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+07a380d Backend: auth, JWT roles, captcha, lockout, products, inventory, customers, orders, reports
+ .gitignore                                         |  23 ++
+ backend/.gitattributes                             |   2 +
+ backend/.gitignore                                 |  33 +++
+ backend/.mvn/wrapper/maven-wrapper.properties      |   3 +
+ backend/mvnw                                       | 295 +++++++++++++++++++++
+ backend/mvnw.cmd                                   | 189 +++++++++++++
+ backend/pom.xml                                    |  93 +++++++
+ .../src/main/java/backend/BackendApplication.java  |  13 +
+ .../src/main/java/backend/config/AdminSeeder.java  |  38 +++
+ .../main/java/backend/config/PasswordConfig.java   |  14 +
+ .../main/java/backend/config/SecurityConfig.java   |  59 +++++
+ .../backend/controller/AdminUserController.java    |  95 +++++++
+ .../backend/controller/AuditLogController.java     |  23 ++
+ .../java/backend/controller/AuthController.java    | 122 +++++++++
+ .../backend/controller/CategoryController.java     |  36 +++
+ .../backend/controller/CustomerController.java     |  38 +++
+ .../backend/controller/DashboardController.java    |  20 ++
+ .../backend/controller/InventoryController.java    |  37 +++
+ .../java/backend/controller/OrderController.java   |  37 +++
+ .../java/backend/controller/ProductController.java |  48 ++++
+ .../java/backend/controller/ReportController.java  |  28 ++
+ .../main/java/backend/dto/AuditLogResponse.java    |  12 +
+ .../main/java/backend/dto/CreateUserRequest.java   |  10 +
+ .../src/main/java/backend/dto/CustomerRequest.java |  12 +
+ .../main/java/backend/dto/CustomerResponse.java    |   9 +
+ .../main/java/backend/dto/DashboardResponse.java   |  10 +
+ .../java/backend/dto/InventoryReportResponse.java  |   9 +
+ .../src/main/java/backend/dto/LoginRequest.java    |  10 +
+ .../main/java/backend/dto/MovementResponse.java    |  15 ++
+ .../src/main/java/backend/dto/OrderRequest.java    |  17 ++
+ .../src/main/java/backend/dto/OrderResponse.java   |  25 ++
+ .../src/main/java/backend/dto/ProductRequest.java  |  14 +
+ .../src/main/java/backend/dto/ProductResponse.java |  17 ++
+ .../src/main/java/backend/dto/ProductSalesRow.java |   7 +
+ .../main/java/backend/dto/SalesReportResponse.java |  10 +
+ .../src/main/java/backend/dto/StockRequest.java    |   8 +
+ .../src/main/java/backend/dto/UserResponse.java    |   9 +
+ backend/src/main/java/backend/entity/AuditLog.java |  23 ++
+ backend/src/main/java/backend/entity/Category.java |  17 ++
+ backend/src/main/java/backend/entity/Customer.java |  21 ++
+ .../src/main/java/backend/entity/OrderItem.java    |  24 ++
+ backend/src/main/java/backend/entity/Product.java  |  35 +++
+ .../src/main/java/backend/entity/SalesOrder.java   |  31 +++
+ .../main/java/backend/entity/StockMovement.java    |  35 +++
+ backend/src/main/java/backend/entity/User.java     |  34 +++
+ .../src/main/java/backend/enums/MovementType.java  |   3 +
+ .../src/main/java/backend/enums/OrderStatus.java   |   6 +
+ backend/src/main/java/backend/enums/Role.java      |   3 +
+ .../backend/exception/GlobalExceptionHandler.java  |  27 ++
+ .../backend/repository/AuditLogRepository.java     |   9 +
+ .../backend/repository/CategoryRepository.java     |   8 +
+ .../backend/repository/CustomerRepository.java     |  14 +
+ .../backend/repository/OrderItemRepository.java    |  20 ++
+ .../java/backend/repository/ProductRepository.java |  36 +++
+ .../backend/repository/SalesOrderRepository.java   |  41 +++
+ .../repository/StockMovementRepository.java        |  10 +
+ .../java/backend/repository/UserRepository.java    |  11 +
+ .../main/java/backend/security/JwtAuthFilter.java  |  47 ++++
+ .../src/main/java/backend/security/JwtService.java |  38 +++
+ .../main/java/backend/service/AuditService.java    |  24 ++
+ .../main/java/backend/service/CaptchaService.java  |  37 +++
+ .../main/java/backend/service/CustomerService.java |  57 ++++
+ .../java/backend/service/DashboardService.java     |  36 +++
+ .../java/backend/service/LoginRateLimiter.java     |  26 ++
+ .../main/java/backend/service/OrderService.java    | 106 ++++++++
+ .../main/java/backend/service/ProductService.java  |  83 ++++++
+ .../main/java/backend/service/ReportService.java   |  62 +++++
+ .../main/java/backend/service/StockService.java    |  54 ++++
+ backend/src/main/resources/application.properties  |  12 +
+ .../test/java/backend/BackendApplicationTests.java |  13 +
+ 70 files changed, 2443 insertions(+)

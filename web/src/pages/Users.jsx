@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api";
+import ResetPasswordModal from "../components/ResetPasswordModal";
 import { useConfirm } from "../confirmContext";
 
 const emptyForm = { name: "", email: "", password: "", role: "STAFF" };
@@ -17,6 +18,7 @@ function ActiveBadge({ active }) {
 
 export default function Users() {
   const confirm = useConfirm();
+  const [resetUser, setResetUser] = useState(null);
   const me = JSON.parse(localStorage.getItem("user") || "{}");
   const [users, setUsers] = useState([]);
   const [keyword, setKeyword] = useState("");
@@ -102,15 +104,17 @@ export default function Users() {
   function Action({ u }) {
     if (isMe(u)) return <span className="text-secondary small">You</span>;
     return (
-      <button
-        className={"btn btn-sm " + (u.active ? "btn-outline-danger" : "btn-outline-light")}
-        onClick={() => toggle(u)}
-      >
-        {u.active ? "Deactivate" : "Activate"}
-      </button>
+      <div className="d-flex gap-2 justify-content-end flex-wrap">
+        <button className="btn btn-sm btn-outline-light" onClick={() => setResetUser(u)}>Reset password</button>
+        <button
+          className={"btn btn-sm " + (u.active ? "btn-outline-danger" : "btn-outline-light")}
+          onClick={() => toggle(u)}
+        >
+          {u.active ? "Deactivate" : "Activate"}
+        </button>
+      </div>
     );
   }
-
   return (
     <div>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
@@ -211,6 +215,8 @@ export default function Users() {
           <div className="modal-backdrop show"></div>
         </>
       )}
+
+      <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} onDone={(text) => setToast({ text })} />
 
       {toast && (
         <div className="toast-box">
