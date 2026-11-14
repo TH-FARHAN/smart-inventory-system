@@ -98,6 +98,37 @@ public interface ApiService {
     @PATCH("admin/users/{id}/reset-password")
     Call<ResponseBody> resetPassword(@Path("id") long id, @Body ResetPasswordRequest body);
 
+    // ----- returns, suppliers, purchases -----
+    @GET("returns")
+    Call<java.util.List<com.bxostock.app.model.ReturnResponse>> returnsList();
+
+    @GET("returns/order/{id}/returnable")
+    Call<java.util.List<com.bxostock.app.model.Returnable>> returnable(@Path("id") long id);
+
+    @POST("returns")
+    Call<com.bxostock.app.model.ReturnResponse> createReturn(@Body com.bxostock.app.model.ReturnRequest body);
+
+    @GET("suppliers")
+    Call<java.util.List<com.bxostock.app.model.Supplier>> suppliers();
+
+    @POST("suppliers")
+    Call<com.bxostock.app.model.Supplier> addSupplier(@Body com.bxostock.app.model.SupplierRequest body);
+
+    @PUT("suppliers/{id}")
+    Call<com.bxostock.app.model.Supplier> updateSupplier(@Path("id") long id, @Body com.bxostock.app.model.SupplierRequest body);
+
+    @GET("purchases")
+    Call<java.util.List<com.bxostock.app.model.PurchaseResponse>> purchases();
+
+    @POST("purchases")
+    Call<com.bxostock.app.model.PurchaseResponse> createPurchase(@Body com.bxostock.app.model.PurchaseRequest body);
+
+    @POST("purchases/{id}/receive")
+    Call<com.bxostock.app.model.PurchaseResponse> receivePurchase(@Path("id") long id);
+
+    @POST("purchases/{id}/cancel")
+    Call<com.bxostock.app.model.PurchaseResponse> cancelPurchase(@Path("id") long id);
+
     // ----- admin only -----
     @GET("admin/users")
     Call<List<UserResponse>> users();

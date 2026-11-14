@@ -3,6 +3,7 @@ import api from "../api";
 import SearchSelect from "../components/SearchSelect";
 import { useConfirm } from "../confirmContext";
 import { billPdf } from "../pdfReports";
+import ReturnModal from "../components/ReturnModal";
 
 function errText(err) {
   if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
@@ -36,6 +37,7 @@ export default function Orders() {
   const [toast, setToast] = useState(null);
 
   const [view, setView] = useState(null);
+  const [returnOrder, setReturnOrder] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [customerId, setCustomerId] = useState("");
   const [rows, setRows] = useState([emptyRow]);
@@ -211,6 +213,9 @@ export default function Orders() {
                     <button className="btn btn-sm btn-outline-light me-2" onClick={() => setView(o)}>View</button>
                     <button className="btn btn-sm btn-outline-light me-2" onClick={() => billPdf(o)}>Bill PDF</button>
                     {o.status === "CONFIRMED" && (
+                      <button className="btn btn-sm btn-outline-light me-2" onClick={() => setReturnOrder(o)}>Return</button>
+                    )}
+                    {o.status === "CONFIRMED" && (
                       <button className="btn btn-sm btn-outline-danger" onClick={() => cancel(o)}>Cancel</button>
                     )}
                   </td>
@@ -238,6 +243,9 @@ export default function Orders() {
             <div className="d-flex gap-2 mt-3">
               <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => setView(o)}>View</button>
               <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => billPdf(o)}>Bill PDF</button>
+              {o.status === "CONFIRMED" && (
+                <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => setReturnOrder(o)}>Return</button>
+              )}
               {o.status === "CONFIRMED" && (
                 <button className="btn btn-sm btn-outline-danger flex-fill" onClick={() => cancel(o)}>Cancel</button>
               )}
@@ -281,6 +289,9 @@ export default function Orders() {
                     <button className="btn btn-outline-danger" onClick={() => cancel(view)}>Cancel order</button>
                   )}
                   <button className="btn btn-outline-light" onClick={() => billPdf(view)}>Bill PDF</button>
+                  {view.status === "CONFIRMED" && (
+                    <button className="btn btn-outline-light" onClick={() => { setReturnOrder(view); setView(null); }}>Return items</button>
+                  )}
                   <button className="btn btn-outline-light" onClick={() => setView(null)}>Close</button>
                 </div>
               </div>
@@ -369,7 +380,14 @@ export default function Orders() {
         </>
       )}
 
-      {/* Popup with Undo */}
+      {returnOrder && (
+        <ReturnModal
+          key={returnOrder.id}
+          order={returnOrder}
+          onClose={() => setReturnOrder(null)}
+          onDone={(text) => { setToast({ text }); setRefreshKey((k) => k + 1); }}
+        />
+      )}{/* Popup with Undo */}
       {toast && (
         <div className="toast-box">
           <span>{toast.text}</span>

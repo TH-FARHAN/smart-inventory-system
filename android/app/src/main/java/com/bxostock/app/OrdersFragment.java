@@ -98,8 +98,20 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
         if ("CONFIRMED".equals(o.status)) {
             b.setNegativeButton("Cancel order", (d, w) -> confirmCancel(o));
         }
-        b.setNeutralButton("Bill PDF", (d, w) -> exportBill(o));
+        b.setNeutralButton("More", (d, w) -> showMore(o));
         b.show();
+    }
+
+    private void showMore(final OrderResponse o) {
+        final boolean canReturn = "CONFIRMED".equals(o.status);
+        String[] items = canReturn ? new String[]{"Bill PDF", "Return items"} : new String[]{"Bill PDF"};
+        new MaterialAlertDialogBuilder(requireContext())
+                .setTitle("Order #" + o.id)
+                .setItems(items, (d, which) -> {
+                    if (which == 0) exportBill(o);
+                    else ReturnDialog.show(requireActivity(), o, this::reload);
+                })
+                .show();
     }
 
     private void exportBill(OrderResponse o) {

@@ -38,5 +38,6 @@
         <activity android:name=".MainActivity" android:exported="false" android:screenOrientation="portrait" />
         <activity android:name=".NewOrderActivity" android:exported="false" android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
+    <activity android:name=".NewPurchaseActivity" android:exported="false" android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

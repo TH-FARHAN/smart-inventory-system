@@ -24,6 +24,7 @@ public class OrderService {
     private final ProductRepository products;
     private final StockMovementRepository movements;
     private final UserRepository users;
+    private final SalesReturnRepository returnsRepo;
 
     @Transactional
     public OrderResponse create(OrderRequest r, String email) {
@@ -79,6 +80,8 @@ public class OrderService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         if (order.getStatus() == OrderStatus.CANCELLED)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Order is already cancelled");
+        if (returnsRepo.existsByOrderId(id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This order has returns, so it cannot be cancelled");
         User user = users.findByEmail(email).orElseThrow();
 
         for (OrderItem item : order.getItems()) {

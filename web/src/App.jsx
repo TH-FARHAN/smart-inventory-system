@@ -10,6 +10,8 @@ import Users from "./pages/Users";
 import Categories from "./pages/Categories";
 import AuditLogs from "./pages/AuditLogs";
 import Reports from "./pages/Reports";
+import Returns from "./pages/Returns";
+import Suppliers from "./pages/Suppliers";
 import Profile from "./pages/Profile";
 import StaffPerformance from "./pages/StaffPerformance";
 
@@ -32,6 +34,8 @@ export default function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/orders" element={<Orders />} />
+        <Route path="/returns" element={<Returns />} />
+        <Route path="/suppliers" element={<AdminOnly><Suppliers /></AdminOnly>} />
         <Route path="/users" element={<AdminOnly><Users /></AdminOnly>} />
         <Route path="/categories" element={<AdminOnly><Categories /></AdminOnly>} />
         <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
