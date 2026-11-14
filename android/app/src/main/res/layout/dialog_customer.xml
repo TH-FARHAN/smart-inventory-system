@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Name">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/dName"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textPersonName|textCapWords" android:maxLength="100" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:hint="Phone">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/dPhone"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="phone" android:maxLength="20" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:hint="Email (optional)">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/dEmail"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textEmailAddress" android:maxLength="100" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:hint="Address (optional)">
+        <com.google.android.material.textfield.TextInputEditText android:id="@+id/dAddress"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:inputType="textPostalAddress|textCapWords" android:maxLength="255" />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

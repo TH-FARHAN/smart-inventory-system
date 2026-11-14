@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <ImageView
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:adjustViewBounds="true"
+            android:contentDescription="BxoStock"
+            android:src="@drawable/logo_full" />
+
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="24dp" android:text="Sign in" android:textSize="26sp"
+            android:textStyle="bold" />
+        <TextView android:id="@+id/tvSub" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:text="Owner or manager access"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleRole"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnAdmin"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Admin" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnStaff"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Staff" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Email">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etEmail"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textEmailAddress" android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="12dp" android:hint="Password"
+            app:endIconMode="password_toggle">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/etPassword"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textPassword" android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout android:id="@+id/captchaBox" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="12dp"
+            android:orientation="vertical" android:visibility="gone">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Security check" android:textColor="?attr/colorOnSurfaceVariant" />
+            <TextView android:id="@+id/tvCaptcha" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginTop="4dp"
+                android:textSize="22sp" android:textStyle="bold" />
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:hint="Your answer">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/etCaptcha"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="number" android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <Button android:id="@+id/btnNewCaptcha" style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="New question" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/tvError" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="12dp"
+            android:textColor="#FF6B6B" android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnLogin"
+            android:layout_width="match_parent" android:layout_height="56dp"
+            android:layout_marginTop="16dp" android:text="Sign in as Admin" />
+
+        <ProgressBar android:id="@+id/progress" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:layout_gravity="center_horizontal"
+            android:layout_marginTop="16dp" android:visibility="gone" />
+
+        <TextView android:id="@+id/tvHint" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:gravity="center"
+            android:text="The first sign-in can take up to a minute while the server wakes up."
+            android:textColor="?attr/colorOnSurfaceVariant" android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
+</ScrollView>

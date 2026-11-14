@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="Name">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/dName"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textCapWords" android:maxLength="100" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:hint="SKU / barcode">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/dSku"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textCapCharacters" android:maxLength="50" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:hint="Category (optional)">
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView android:id="@+id/dCategory"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="text" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:hint="Description (optional)">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/dDescription"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:inputType="textCapSentences" android:maxLength="255" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:orientation="horizontal">
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp" android:layout_weight="1" android:hint="Purchase price">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/dPurchase"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="numberDecimal" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:layout_weight="1" android:hint="Selling price">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/dSelling"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="numberDecimal" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp" android:orientation="horizontal">
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp" android:layout_weight="1" android:hint="Minimum stock">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/dMin"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="number" android:maxLength="6" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilOpening"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_marginStart="5dp" android:layout_weight="1" android:hint="Opening stock">
+                <com.google.android.material.textfield.TextInputEditText android:id="@+id/dOpening"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:inputType="number" android:maxLength="6" />
+            </com.google.android.material.textfield.TextInputLayout>
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

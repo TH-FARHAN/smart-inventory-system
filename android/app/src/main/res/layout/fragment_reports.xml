@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/toggleType"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnSales"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Sales report" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnInv"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Inventory report" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <LinearLayout android:id="@+id/salesFilters" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:orientation="vertical">
+
+            <HorizontalScrollView android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:scrollbars="none">
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipPreset"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    app:selectionRequired="true" app:singleLine="true" app:singleSelection="true">
+                    <com.google.android.material.chip.Chip android:id="@+id/chipMonth"
+                        style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:checkable="true"
+                        android:checked="true" android:text="This month" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chipLast"
+                        style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:checkable="true" android:text="Last month" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chipYear"
+                        style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:checkable="true" android:text="This year" />
+                    <com.google.android.material.chip.Chip android:id="@+id/chipCustom"
+                        style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:checkable="true" android:text="Custom" />
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+
+            <LinearLayout android:id="@+id/customBox" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="horizontal"
+                android:visibility="gone">
+                <Button android:id="@+id/btnFrom" style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp" android:layout_weight="1" />
+                <Button android:id="@+id/btnTo" style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp" android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp" android:layout_weight="1" />
+            </LinearLayout>
+
+            <TextView android:id="@+id/tvRange" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:layout_marginStart="4dp"
+                android:layout_marginTop="4dp" android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/tvMessage" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:padding="8dp" android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton android:id="@+id/btnPdf" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:layout_marginTop="8dp" android:text="Download PDF" android:visibility="gone" />
+
+        <GridLayout android:id="@+id/grid" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp" android:columnCount="2" />
+
+        <LinearLayout android:id="@+id/list" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginTop="8dp"
+            android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>
