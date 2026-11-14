@@ -11,7 +11,7 @@ function errText(err) {
 const when = (s) => (s ? new Date(s).toLocaleString("en-IN") : "-");
 
 export default function Inventory() {
-  const [tab, setTab] = useState("move");
+  const [tab, setTab] = useState(new URLSearchParams(window.location.search).get("tab") === "low" ? "low" : "move");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [products, setProducts] = useState([]);

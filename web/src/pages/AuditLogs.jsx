@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../api";
+import { auditPdf } from "../pdfReports";
 
 const when = (s) => (s ? new Date(s).toLocaleString("en-IN") : "-");
 
@@ -44,7 +45,11 @@ export default function AuditLogs() {
     <div>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
         <h2 className="m-0">Audit logs</h2>
-        <button className="btn btn-outline-light btn-sm" onClick={() => setRefreshKey((k) => k + 1)}>Refresh</button>
+        <div className="d-flex flex-wrap gap-2">
+          <button className="btn btn-outline-light btn-sm" onClick={() => setRefreshKey((k) => k + 1)}>Refresh</button>
+          <button className="btn btn-accent btn-sm" disabled={shown.length === 0} onClick={() => auditPdf(shown, keyword.trim(), false)}>Download PDF</button>
+          {typeof navigator !== "undefined" && navigator.share && (<button className="btn btn-outline-light btn-sm" disabled={shown.length === 0} onClick={() => auditPdf(shown, keyword.trim(), true)}>Share PDF</button>)}
+        </div>
       </div>
       <p className="text-secondary">The latest 100 security and activity events.</p>
 

@@ -34,6 +34,12 @@ public class ProductsFragment extends BaseListFragment<Product> {
 
     @Override protected String searchHint() { return "Search name or SKU"; }
     @Override protected String filterLabel() { return "Low stock only"; }
+
+    @Override
+    public void onViewCreated(@androidx.annotation.NonNull android.view.View v, @androidx.annotation.Nullable android.os.Bundle s) {
+        super.onViewCreated(v, s);
+        if (getArguments() != null && getArguments().getBoolean("low")) cbFilter.setChecked(true);
+    }
     @Override protected String actionLabel() { return isAdmin() ? "Add" : null; }
     @Override protected void onAction() { openForm(null); }
 

@@ -16,7 +16,12 @@
 
             <TextView android:id="@+id/tvWelcome" android:layout_width="wrap_content"
                 android:layout_height="wrap_content" android:layout_marginStart="4dp"
-                android:layout_marginBottom="8dp" android:textSize="18sp" />
+                android:layout_marginBottom="2dp" android:textSize="18sp" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="4dp" android:layout_marginBottom="8dp"
+                android:text="Tap a card to see the details" android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant" />
 
             <TextView android:id="@+id/tvMessage" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:padding="8dp"
@@ -39,6 +44,13 @@
                 android:text="Low stock" android:textSize="17sp" android:textStyle="bold" />
             <LinearLayout android:id="@+id/low" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:orientation="vertical" />
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="4dp" android:layout_marginTop="16dp"
+                android:text="Recent returns" android:textSize="17sp" android:textStyle="bold" />
+            <LinearLayout android:id="@+id/recentReturns" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical"
+                android:layout_marginBottom="16dp" />
         </LinearLayout>
     </ScrollView>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>

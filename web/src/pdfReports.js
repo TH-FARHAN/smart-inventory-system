@@ -167,3 +167,60 @@ export function billPdf(o) {
 
   doc.save(`bill_order_${o.id}.pdf`);
 }
+
+export async function auditPdf(logs, search, share) {
+  const doc = new jsPDF({ orientation: "landscape" });
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+  const bad = (a) => /FAILED|LOCKED|BLOCKED|LIMITED|DEACTIVATED/.test(a || "");
+  const warnings = logs.filter((l) => bad(l.action)).length;
+
+  header(doc, "Audit report", search ? `Filter: "${search}"` : "All events (latest 100)");
+  doc.setFontSize(10);
+  doc.setTextColor(30);
+  doc.text(`Events: ${logs.length}    Warnings (failed, locked or blocked): ${warnings}`, w - 14, 36, { align: "right" });
+
+  autoTable(doc, {
+    startY: 42,
+    margin: { left: 14, right: 14 },
+    head: [["Time", "User", "Action", "Details", "IP"]],
+    body: logs.map((l) => [
+      l.createdAt ? new Date(l.createdAt).toLocaleString("en-IN") : "-",
+      l.actor || "-",
+      l.action || "-",
+      l.details || "-",
+      l.ipAddress || "-",
+    ]),
+    headStyles: { fillColor: ACCENT },
+    styles: { fontSize: 8, cellPadding: 2 },
+    columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 55 }, 2: { cellWidth: 42 }, 4: { cellWidth: 30 } },
+    didParseCell: (d) => {
+      if (d.section === "body" && d.column.index === 2 && bad(d.cell.raw)) {
+        d.cell.styles.textColor = [200, 0, 0];
+        d.cell.styles.fontStyle = "bold";
+      }
+    },
+  });
+
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+    doc.text(`Page ${i} of ${pages}`, w - 14, h - 8, { align: "right" });
+  }
+
+  const name = `audit_report_${new Date().toISOString().slice(0, 10)}.pdf`;
+  if (share && navigator.canShare) {
+    const file = new File([doc.output("blob")], name, { type: "application/pdf" });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "BxoStock audit report" });
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+      }
+    }
+  }
+  doc.save(name);
+}

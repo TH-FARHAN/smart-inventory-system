@@ -39,6 +39,12 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
                 }
             });
 
+    private static String todayUtc() {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US);
+        f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        return f.format(new java.util.Date());
+    }
+
     @Override protected String searchHint() { return "Search order no., customer or staff"; }
     @Override protected String actionLabel() { return "New order"; }
     @Override protected String filterLabel() { return "Hide cancelled orders"; }
@@ -55,6 +61,10 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
 
     @Override
     protected boolean matches(OrderResponse o, String k) {
+        android.os.Bundle args = getArguments();
+        String preset = args == null ? null : args.getString("filter");
+        if ("today".equals(preset) && (!"CONFIRMED".equals(o.status) || o.createdAt == null || !o.createdAt.startsWith(todayUtc()))) return false;
+        if ("confirmed".equals(preset) && !"CONFIRMED".equals(o.status)) return false;
         if (cbFilter.isChecked() && "CANCELLED".equals(o.status)) return false;
         if (k.isEmpty()) return true;
         String hay = (o.id + " " + o.customerName + " " + o.createdBy).toLowerCase();

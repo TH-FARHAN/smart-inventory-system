@@ -30,11 +30,17 @@ export default function Orders() {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const params = new URLSearchParams(window.location.search);
+  const [statusFilter, setStatusFilter] = useState(params.get("status") || "");
+  const [todayOnly, setTodayOnly] = useState(params.get("filter") === "today");
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);
+  const [returnedIds, setReturnedIds] = useState(new Set());
+  useEffect(() => {
+    api.get("/returns").then((r) => setReturnedIds(new Set(r.data.map((x) => x.orderId)))).catch(() => {});
+  }, [refreshKey]);
 
   const [view, setView] = useState(null);
   const [returnOrder, setReturnOrder] = useState(null);
@@ -83,6 +89,7 @@ export default function Orders() {
   const shown = [...orders]
     .sort((a, b) => b.id - a.id)
     .filter((o) => !statusFilter || o.status === statusFilter)
+    .filter((o) => !todayOnly || (o.createdAt || "").slice(0, 10) === new Date().toISOString().slice(0, 10))
     .filter(
       (o) =>
         !kw ||
@@ -186,6 +193,7 @@ export default function Orders() {
         </select>
       </div>
 
+      {todayOnly && (<div className="product-card py-2 mb-3 d-flex justify-content-between align-items-center"><span>Showing today's orders only</span><button className="btn btn-sm btn-outline-light" onClick={() => setTodayOnly(false)}>Show all</button></div>)}
       {error && <div className="alert alert-danger py-2">{error}</div>}
       {loading && <p className="text-secondary">Loading...</p>}
       {!loading && !error && shown.length === 0 && <p className="text-secondary">No orders found.</p>}
@@ -207,7 +215,7 @@ export default function Orders() {
                   <td className="text-nowrap">{when(o.createdAt)}</td>
                   <td>{o.customerName}</td>
                   <td>{o.createdBy}</td>
-                  <td><StatusBadge status={o.status} /></td>
+                  <td><><StatusBadge status={o.status} />{returnedIds.has(o.id) && <span className="badge bg-warning text-dark ms-1">Returned</span>}</></td>
                   <td className="text-end">{money(o.totalAmount)}</td>
                   <td className="text-end text-nowrap">
                     <button className="btn btn-sm btn-outline-light me-2" onClick={() => setView(o)}>View</button>
@@ -232,7 +240,7 @@ export default function Orders() {
           <div className="product-card" key={o.id}>
             <div className="d-flex justify-content-between">
               <strong>Order #{o.id}</strong>
-              <StatusBadge status={o.status} />
+              <><StatusBadge status={o.status} />{returnedIds.has(o.id) && <span className="badge bg-warning text-dark ms-1">Returned</span>}</>
             </div>
             <div className="text-secondary small">{when(o.createdAt)}</div>
             <div className="mt-2">{o.customerName}</div>
