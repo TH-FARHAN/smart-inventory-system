@@ -8,6 +8,7 @@ import backend.enums.OrderStatus;
 import backend.repository.OrderItemRepository;
 import backend.repository.ProductRepository;
 import backend.repository.SalesOrderRepository;
+import backend.repository.SalesReturnRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportService {
     private final SalesOrderRepository orders;
+    private final SalesReturnRepository returnsRepo;
     private final OrderItemRepository items;
     private final ProductRepository products;
 
@@ -35,9 +37,10 @@ public class ReportService {
         var fromTime = start.atStartOfDay();
         var toTime = end.plusDays(1).atStartOfDay();
         long count = orders.countBetween(OrderStatus.CONFIRMED, fromTime, toTime);
-        BigDecimal total = orders.sumBetween(OrderStatus.CONFIRMED, fromTime, toTime);
+        BigDecimal gross = orders.sumBetween(OrderStatus.CONFIRMED, fromTime, toTime);
+        BigDecimal total = gross.subtract(returnsRepo.refundsBetween(fromTime, toTime));
         BigDecimal average = count == 0 ? BigDecimal.ZERO
-                : total.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
+                : gross.divide(BigDecimal.valueOf(count), 2, RoundingMode.HALF_UP);
         return new SalesReportResponse(start, end, count, total, average,
                 items.salesByProduct(OrderStatus.CONFIRMED, fromTime, toTime));
     }
