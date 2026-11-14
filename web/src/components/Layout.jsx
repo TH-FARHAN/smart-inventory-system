@@ -2,7 +2,6 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import api from "../api";
 import Brand from "./Brand";
-import OnlineStatus from "./OnlineStatus";
 
 // groups shown as dropdowns; adminOnly items are hidden from STAFF
 const GROUPS = [
@@ -67,7 +66,6 @@ export default function Layout() {
 
   return (
     <div className="shell">
-      <OnlineStatus />
       {/* top bar: phones and tablets only */}
       <header className="topbar">
         <button className="menu-btn" onClick={() => setOpen(true)} aria-label="Open menu">
