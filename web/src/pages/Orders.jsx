@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../api";
 import SearchSelect from "../components/SearchSelect";
 import { useConfirm } from "../confirmContext";
+import { billPdf } from "../pdfReports";
 
 function errText(err) {
   if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
@@ -208,6 +209,7 @@ export default function Orders() {
                   <td className="text-end">{money(o.totalAmount)}</td>
                   <td className="text-end text-nowrap">
                     <button className="btn btn-sm btn-outline-light me-2" onClick={() => setView(o)}>View</button>
+                    <button className="btn btn-sm btn-outline-light me-2" onClick={() => billPdf(o)}>Bill PDF</button>
                     {o.status === "CONFIRMED" && (
                       <button className="btn btn-sm btn-outline-danger" onClick={() => cancel(o)}>Cancel</button>
                     )}
@@ -235,6 +237,7 @@ export default function Orders() {
             </div>
             <div className="d-flex gap-2 mt-3">
               <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => setView(o)}>View</button>
+              <button className="btn btn-sm btn-outline-light flex-fill" onClick={() => billPdf(o)}>Bill PDF</button>
               {o.status === "CONFIRMED" && (
                 <button className="btn btn-sm btn-outline-danger flex-fill" onClick={() => cancel(o)}>Cancel</button>
               )}
@@ -277,6 +280,7 @@ export default function Orders() {
                   {view.status === "CONFIRMED" && (
                     <button className="btn btn-outline-danger" onClick={() => cancel(view)}>Cancel order</button>
                   )}
+                  <button className="btn btn-outline-light" onClick={() => billPdf(view)}>Bill PDF</button>
                   <button className="btn btn-outline-light" onClick={() => setView(null)}>Close</button>
                 </div>
               </div>

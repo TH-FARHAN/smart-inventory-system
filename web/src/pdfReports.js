@@ -104,3 +104,66 @@ export function inventoryPdf(data) {
   footer(doc);
   doc.save(`inventory-report_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
+
+const billMoney = (n) =>
+  "Rs. " + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export function billPdf(o) {
+  const doc = new jsPDF({ format: "a5" });
+  const w = doc.internal.pageSize.getWidth();
+  const h = doc.internal.pageSize.getHeight();
+
+  doc.setFontSize(20);
+  doc.setTextColor(...ACCENT);
+  doc.text("BxoStock", 14, 18);
+  doc.setFontSize(10);
+  doc.setTextColor(110);
+  doc.text("Supermarket bill", 14, 24);
+
+  doc.setFontSize(11);
+  doc.setTextColor(30);
+  doc.text(`Bill no: #${o.id}`, w - 14, 18, { align: "right" });
+  doc.setFontSize(9);
+  doc.setTextColor(110);
+  doc.text(o.createdAt ? new Date(o.createdAt).toLocaleString("en-IN") : "-", w - 14, 24, { align: "right" });
+
+  doc.setDrawColor(220);
+  doc.line(14, 28, w - 14, 28);
+
+  doc.setFontSize(10);
+  doc.setTextColor(30);
+  doc.text(`Customer: ${o.customerName || "-"}`, 14, 35);
+  doc.text(`Served by: ${o.createdBy || "-"}`, 14, 41);
+
+  let endY = 47 + 8 * ((o.items || []).length + 1);
+  autoTable(doc, {
+    startY: 47,
+    margin: { left: 14, right: 14 },
+    head: [["Item", "Qty", "Rate", "Amount"]],
+    body: (o.items || []).map((l) => [l.productName, l.quantity, billMoney(l.unitPrice), billMoney(l.subtotal)]),
+    headStyles: { fillColor: ACCENT },
+    columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
+    styles: { fontSize: 9 },
+    didDrawPage: (d) => { endY = d.cursor.y; },
+  });
+
+  const y = endY + 8;
+  doc.setDrawColor(220);
+  doc.line(14, y - 4, w - 14, y - 4);
+  doc.setFontSize(12);
+  doc.setTextColor(30);
+  doc.text("Total", 14, y + 2);
+  doc.text(billMoney(o.totalAmount), w - 14, y + 2, { align: "right" });
+
+  if (o.status === "CANCELLED") {
+    doc.setFontSize(44);
+    doc.setTextColor(200, 0, 0);
+    doc.text("CANCELLED", w / 2, h / 2, { align: "center", angle: 30 });
+  }
+
+  doc.setFontSize(9);
+  doc.setTextColor(140);
+  doc.text("Thank you for shopping with us!", w / 2, h - 12, { align: "center" });
+
+  doc.save(`bill_order_${o.id}.pdf`);
+}
