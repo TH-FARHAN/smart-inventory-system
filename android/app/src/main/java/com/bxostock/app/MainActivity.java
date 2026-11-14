@@ -1,6 +1,11 @@
 package com.bxostock.app;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.TextView;
 
@@ -16,6 +21,7 @@ import com.bxostock.app.util.Session;
 import com.bxostock.app.util.TokenStore;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -24,6 +30,11 @@ import retrofit2.Response;
 public class MainActivity extends AppCompatActivity {
     private TextView tvTitle;
     private DrawerLayout drawer;
+    private ConnectivityManager cm;
+    private ConnectivityManager.NetworkCallback netCallback;
+    private Snackbar offlineBar;
+    private boolean wasOffline = false;
+    private final Handler netHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,10 +61,21 @@ public class MainActivity extends AppCompatActivity {
         });
 
         findViewById(R.id.dProfile).setOnClickListener(v -> go(new ProfileFragment()));
+        findViewById(R.id.dOrders).setOnClickListener(v -> go(new OrdersFragment()));
         findViewById(R.id.dReturns).setOnClickListener(v -> go(new ReturnsFragment()));
+        findViewById(R.id.dCustomers).setOnClickListener(v -> go(new CustomersFragment()));
+        findViewById(R.id.dProducts).setOnClickListener(v -> go(new ProductsFragment()));
+        findViewById(R.id.dStock).setOnClickListener(v -> go(new StockFragment()));
+
+        setupGroup(R.id.gSales, R.id.bSales, R.id.aSales);
+        setupGroup(R.id.gInventory, R.id.bInventory, R.id.aInventory);
 
         if ("ADMIN".equals(role)) {
-            findViewById(R.id.adminItems).setVisibility(View.VISIBLE);
+            findViewById(R.id.adminGroup).setVisibility(View.VISIBLE);
+            findViewById(R.id.dCategories).setVisibility(View.VISIBLE);
+            findViewById(R.id.dSuppliers).setVisibility(View.VISIBLE);
+            findViewById(R.id.dPurchases).setVisibility(View.VISIBLE);
+            setupGroup(R.id.gAdmin, R.id.bAdmin, R.id.aAdmin);
             findViewById(R.id.dUsers).setOnClickListener(v -> go(new UsersFragment()));
             findViewById(R.id.dCategories).setOnClickListener(v -> go(new CategoriesFragment()));
             findViewById(R.id.dReports).setOnClickListener(v -> go(new ReportsFragment()));
@@ -87,6 +109,72 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
         if (savedInstanceState == null) nav.setSelectedItemId(R.id.nav_home);
+        watchNetwork();
+    }
+
+    /** Tap the header to open or close a group; the arrow turns. */
+    private void setupGroup(int headerId, int bodyId, int arrowId) {
+        final View body = findViewById(bodyId);
+        final TextView arrow = findViewById(arrowId);
+        findViewById(headerId).setOnClickListener(v -> {
+            boolean open = body.getVisibility() == View.VISIBLE;
+            body.setVisibility(open ? View.GONE : View.VISIBLE);
+            arrow.animate().rotation(open ? 0f : 180f).setDuration(200).start();
+        });
+    }
+
+    /** Shows a red bar when the internet is lost and a green one when it returns. */
+    private void watchNetwork() {
+        cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return;
+        if (cm.getActiveNetwork() == null) showOffline();
+        netCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                runOnUiThread(() -> showOnline());
+            }
+
+            @Override
+            public void onLost(Network network) {
+                // wait a moment: switching WiFi to mobile data also fires onLost
+                netHandler.postDelayed(() -> {
+                    if (cm.getActiveNetwork() == null) showOffline();
+                }, 700);
+            }
+        };
+        cm.registerDefaultNetworkCallback(netCallback);
+    }
+
+    private void showOffline() {
+        if (isFinishing() || wasOffline) return;
+        wasOffline = true;
+        offlineBar = Snackbar.make(findViewById(android.R.id.content),
+                "You are offline. Check your internet connection.", Snackbar.LENGTH_INDEFINITE);
+        offlineBar.setBackgroundTint(0xFFDC2626).setTextColor(0xFFFFFFFF);
+        offlineBar.setAnchorView(findViewById(R.id.bottomNav));
+        offlineBar.show();
+    }
+
+    private void showOnline() {
+        if (!wasOffline || isFinishing()) return;
+        wasOffline = false;
+        if (offlineBar != null) offlineBar.dismiss();
+        Snackbar ok = Snackbar.make(findViewById(android.R.id.content), "Back online", Snackbar.LENGTH_SHORT);
+        ok.setBackgroundTint(0xFF16A34A).setTextColor(0xFFFFFFFF);
+        ok.setAnchorView(findViewById(R.id.bottomNav));
+        ok.show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        netHandler.removeCallbacksAndMessages(null);
+        if (cm != null && netCallback != null) {
+            try {
+                cm.unregisterNetworkCallback(netCallback);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     private void go(Fragment f) {

@@ -435,3 +435,85 @@ input[type="date"] { color-scheme: dark; min-width: 150px; }
   .login-mobile-brand { margin-bottom: 16px; }
   .login-title { margin-top: 16px; }
 }
+
+/* ---- grouped sidebar ---- */
+.side-group { margin-top: 6px; }
+
+.side-group-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: #d9d9dd;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.side-group-btn:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.side-group-btn.open { background: #1c1c1f; color: #fff; }
+
+.side-group-btn .chev {
+  font-size: 0.85rem;
+  color: #9a9aa3;
+  transition: transform 0.25s ease, color 0.2s ease;
+}
+.side-group-btn.open .chev { transform: rotate(180deg); color: #ff4d1c; }
+
+/* smooth slide down / up */
+.side-sub-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.side-sub-wrap.open { grid-template-rows: 1fr; }
+
+.side-sub {
+  min-height: 0;
+  overflow: hidden;
+  margin: 0 0 0 16px;
+  border-left: 2px solid #2a2a2e;
+  visibility: hidden;
+  transition: visibility 0.25s;
+}
+.side-sub-wrap.open .side-sub { visibility: visible; margin-top: 4px; margin-bottom: 6px; }
+
+.side-link.sub {
+  display: block;
+  margin: 2px 0 2px 8px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  color: #b5b5bc;
+  font-size: 0.92rem;
+}
+.side-link.sub:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.side-link.sub.active {
+  background: rgba(255, 77, 28, 0.14);
+  color: #ff4d1c;
+  font-weight: 600;
+}
+
+/* ---- offline / online toast ---- */
+.net-toast {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  max-width: calc(100vw - 24px);
+  text-align: center;
+}
+.net-toast.off { background: #dc2626; }
+.net-toast.ok { background: #16a34a; }

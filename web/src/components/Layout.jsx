@@ -1,30 +1,63 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import api from "../api";
 import Brand from "./Brand";
+import OnlineStatus from "./OnlineStatus";
+
+// groups shown as dropdowns; adminOnly items are hidden from STAFF
+const GROUPS = [
+  {
+    key: "sales",
+    label: "Sales",
+    items: [
+      { to: "/orders", label: "Orders" },
+      { to: "/returns", label: "Returns" },
+      { to: "/customers", label: "Customers" },
+    ],
+  },
+  {
+    key: "inventory",
+    label: "Inventory",
+    items: [
+      { to: "/products", label: "Products" },
+      { to: "/inventory", label: "Stock in / out" },
+      { to: "/categories", label: "Categories", adminOnly: true },
+      { to: "/suppliers", label: "Suppliers", adminOnly: true },
+    ],
+  },
+  {
+    key: "admin",
+    label: "Admin",
+    items: [
+      { to: "/users", label: "Users", adminOnly: true },
+      { to: "/reports", label: "Reports", adminOnly: true },
+      { to: "/audit-logs", label: "Audit logs", adminOnly: true },
+      { to: "/staff-performance", label: "Staff performance", adminOnly: true },
+    ],
+  },
+];
 
 export default function Layout() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState({});
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const isAdmin = user.role === "ADMIN";
 
-  // add new pages here later; adminOnly pages are hidden from STAFF
-  const links = [
-    { to: "/", label: "Dashboard", end: true },
-    { to: "/products", label: "Products" },
-    { to: "/inventory", label: "Inventory" },
-    { to: "/customers", label: "Customers" },
-    { to: "/orders", label: "Orders" },
-    { to: "/returns", label: "Returns" },
-    { to: "/profile", label: "Profile" },
-    { to: "/users", label: "Users", adminOnly: true },
-    { to: "/categories", label: "Categories", adminOnly: true },
-    { to: "/reports", label: "Reports", adminOnly: true },
-    { to: "/audit-logs", label: "Audit logs", adminOnly: true },
-    { to: "/suppliers", label: "Suppliers", adminOnly: true },
-    { to: "/staff-performance", label: "Staff performance", adminOnly: true },
-  ].filter((l) => !l.adminOnly || isAdmin);
+  const groups = GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.adminOnly || isAdmin) }))
+    .filter((g) => g.items.length > 0);
+
+  // a group is open if the user chose so, otherwise when it holds the current page
+  function isOpen(g) {
+    if (expanded[g.key] !== undefined) return expanded[g.key];
+    return g.items.some((i) => pathname === i.to || pathname.startsWith(i.to + "/"));
+  }
+
+  function toggle(g) {
+    setExpanded({ ...expanded, [g.key]: !isOpen(g) });
+  }
 
   async function logout() {
     try { await api.post("/auth/logout"); } catch { /* ignore */ }
@@ -34,6 +67,7 @@ export default function Layout() {
 
   return (
     <div className="shell">
+      <OnlineStatus />
       {/* top bar: phones and tablets only */}
       <header className="topbar">
         <button className="menu-btn" onClick={() => setOpen(true)} aria-label="Open menu">
@@ -53,17 +87,44 @@ export default function Layout() {
         </div>
 
         <nav className="side-links">
-          {links.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.end}
-              className="side-link"
-              onClick={() => setOpen(false)}
-            >
-              {l.label}
-            </NavLink>
-          ))}
+          <NavLink to="/" end className="side-link" onClick={() => setOpen(false)}>
+            Dashboard
+          </NavLink>
+
+          {groups.map((g) => {
+            const o = isOpen(g);
+            return (
+              <div className="side-group" key={g.key}>
+                <button
+                  type="button"
+                  className={"side-group-btn" + (o ? " open" : "")}
+                  onClick={() => toggle(g)}
+                  aria-expanded={o}
+                >
+                  <span>{g.label}</span>
+                  <span className="chev" aria-hidden="true">▾</span>
+                </button>
+                 <div className={"side-sub-wrap" + (o ? " open" : "")}>
+                  <div className="side-sub">
+                    {g.items.map((l) => (
+                      <NavLink
+                        key={l.to}
+                        to={l.to}
+                        className="side-link sub"
+                        onClick={() => setOpen(false)}
+                      >
+                        {l.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <NavLink to="/profile" className="side-link" onClick={() => setOpen(false)}>
+            Profile
+          </NavLink>
         </nav>
 
         <div className="side-user">

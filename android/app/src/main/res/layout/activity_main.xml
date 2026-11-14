@@ -143,43 +143,138 @@
             android:layout_height="1dp"
             android:background="#2A2A2E" />
 
-        <LinearLayout
-            android:id="@+id/adminItems"
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:paddingTop="8dp"
-            android:visibility="gone">
+            android:layout_weight="1">
 
-            <TextView android:id="@+id/dUsers" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
-                android:clickable="true" android:focusable="true" android:padding="16dp"
-                android:text="Users" android:textSize="16sp" />
-            <TextView android:id="@+id/dCategories" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
-                android:clickable="true" android:focusable="true" android:padding="16dp"
-                android:text="Categories" android:textSize="16sp" />
-            <TextView android:id="@+id/dReports" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
-                android:clickable="true" android:focusable="true" android:padding="16dp"
-                android:text="Reports" android:textSize="16sp" />
-            <TextView android:id="@+id/dAudit" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
-                android:clickable="true" android:focusable="true" android:padding="16dp"
-                android:text="Audit logs" android:textSize="16sp" />
-            <TextView android:id="@+id/dStaff" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Staff performance" />
-            <TextView android:id="@+id/dSuppliers" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Suppliers" />
-            <TextView android:id="@+id/dPurchases" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Purchase orders" />
-        </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="6dp">
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+                <!-- ===== SALES ===== -->
+                <LinearLayout android:id="@+id/gSales" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                    android:clickable="true" android:focusable="true" android:gravity="center_vertical"
+                    android:orientation="horizontal" android:padding="16dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Sales" android:textSize="16sp"
+                        android:textStyle="bold" />
+                    <TextView android:id="@+id/aSales" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="▾"
+                        android:textColor="?attr/colorPrimary" android:textSize="18sp" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/bSales" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:orientation="vertical"
+                    android:visibility="gone">
+                    <TextView android:id="@+id/dOrders" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Orders" android:textSize="15sp" />
+                    <TextView android:id="@+id/dReturns" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Returns" android:textSize="15sp" />
+                    <TextView android:id="@+id/dCustomers" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Customers" android:textSize="15sp" />
+                </LinearLayout>
 
-        <TextView android:id="@+id/dReturns" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Returns" />
-        <TextView android:id="@+id/dProfile" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="?attr/selectableItemBackground" android:clickable="true" android:focusable="true" android:padding="16dp" android:textSize="16sp" android:text="Profile" />
+                <!-- ===== INVENTORY ===== -->
+                <LinearLayout android:id="@+id/gInventory" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                    android:clickable="true" android:focusable="true" android:gravity="center_vertical"
+                    android:orientation="horizontal" android:padding="16dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:text="Inventory" android:textSize="16sp"
+                        android:textStyle="bold" />
+                    <TextView android:id="@+id/aInventory" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:text="▾"
+                        android:textColor="?attr/colorPrimary" android:textSize="18sp" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/bInventory" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:orientation="vertical"
+                    android:visibility="gone">
+                    <TextView android:id="@+id/dProducts" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Products" android:textSize="15sp" />
+                    <TextView android:id="@+id/dStock" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Stock in / out" android:textSize="15sp" />
+                    <TextView android:id="@+id/dCategories" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Categories" android:textSize="15sp" android:visibility="gone" />
+                    <TextView android:id="@+id/dSuppliers" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Suppliers" android:textSize="15sp" android:visibility="gone" />
+                    <TextView android:id="@+id/dPurchases" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                        android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                        android:text="Purchase orders" android:textSize="15sp" android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- ===== ADMIN (admins only) ===== -->
+                <LinearLayout android:id="@+id/adminGroup" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:orientation="vertical"
+                    android:visibility="gone">
+                    <LinearLayout android:id="@+id/gAdmin" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                        android:clickable="true" android:focusable="true" android:gravity="center_vertical"
+                        android:orientation="horizontal" android:padding="16dp">
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                            android:layout_weight="1" android:text="Admin" android:textSize="16sp"
+                            android:textStyle="bold" />
+                        <TextView android:id="@+id/aAdmin" android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" android:text="▾"
+                            android:textColor="?attr/colorPrimary" android:textSize="18sp" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/bAdmin" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:orientation="vertical"
+                        android:visibility="gone">
+                        <TextView android:id="@+id/dUsers" android:layout_width="match_parent"
+                            android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                            android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                            android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                            android:text="Users" android:textSize="15sp" />
+                        <TextView android:id="@+id/dReports" android:layout_width="match_parent"
+                            android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                            android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                            android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                            android:text="Reports" android:textSize="15sp" />
+                        <TextView android:id="@+id/dAudit" android:layout_width="match_parent"
+                            android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                            android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                            android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                            android:text="Audit logs" android:textSize="15sp" />
+                        <TextView android:id="@+id/dStaff" android:layout_width="match_parent"
+                            android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                            android:clickable="true" android:focusable="true" android:paddingStart="36dp"
+                            android:paddingTop="12dp" android:paddingEnd="16dp" android:paddingBottom="12dp"
+                            android:text="Staff performance" android:textSize="15sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <TextView android:id="@+id/dProfile" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:background="?attr/selectableItemBackground"
+                    android:clickable="true" android:focusable="true" android:padding="16dp"
+                    android:text="Profile" android:textSize="16sp" android:textStyle="bold" />
+            </LinearLayout>
+        </ScrollView>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLogout"

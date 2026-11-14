@@ -7,6 +7,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.bxostock.app.util.NetworkWatcher;
+
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bxostock.app.api.ApiClient;
@@ -37,6 +39,7 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
         setContentView(R.layout.activity_login);
+        NetworkWatcher.attach(this);
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
         etCaptcha = findViewById(R.id.etCaptcha);
