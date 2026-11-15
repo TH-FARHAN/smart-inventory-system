@@ -101,10 +101,10 @@ export default function Users() {
     }
   }
 
-  function Action({ u }) {
+  function Action({ u, block }) {
     if (isMe(u)) return <span className="text-secondary small">You</span>;
     return (
-      <div className="d-flex gap-2 justify-content-end flex-wrap">
+      <div className={block ? "user-actions" : "d-flex gap-2 justify-content-end flex-wrap"}>
         <button className="btn btn-sm btn-outline-light" onClick={() => setResetUser(u)}>Reset password</button>
         <button
           className={"btn btn-sm " + (u.active ? "btn-outline-danger" : "btn-outline-light")}
@@ -168,10 +168,8 @@ export default function Users() {
               <ActiveBadge active={u.active} />
             </div>
             <div className="text-secondary small">{u.email}</div>
-            <div className="d-flex justify-content-between align-items-center mt-2">
-              <span className="app-role">{u.role}</span>
-              <Action u={u} />
-            </div>
+            <div className="mt-2"><span className="app-role">{u.role}</span></div>
+            <div className="mt-3"><Action u={u} block /></div>
           </div>
         ))}
       </div>

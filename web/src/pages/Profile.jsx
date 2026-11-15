@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api";
+import Avatar from "../components/Avatar";
+import { resizeToDataUrl } from "../photo";
 
 function errText(err) {
   if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
@@ -17,12 +19,66 @@ export default function Profile() {
   const [ok, setOk] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [hasPhoto, setHasPhoto] = useState(!!localStorage.getItem("photo"));
+  const [photoMsg, setPhotoMsg] = useState({ text: "", error: false });
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const galleryRef = useRef(null);
+  const cameraRef = useRef(null);
+
   useEffect(() => {
     api.get("/auth/me").then((r) => setMe(r.data)).catch(() => {});
+    api.get("/account/photo")
+      .then((r) => {
+        if (r.data && r.data.photo) {
+          localStorage.setItem("photo", r.data.photo);
+          setHasPhoto(true);
+        } else {
+          localStorage.removeItem("photo");
+          setHasPhoto(false);
+        }
+        window.dispatchEvent(new Event("photo-changed"));
+      })
+      .catch(() => {});
   }, []);
 
   function change(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function pick(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setPhotoMsg({ text: "", error: false });
+    setPhotoBusy(true);
+    try {
+      const dataUrl = await resizeToDataUrl(file);
+      await api.put("/account/photo", { photo: dataUrl });
+      localStorage.setItem("photo", dataUrl);
+      setHasPhoto(true);
+      window.dispatchEvent(new Event("photo-changed"));
+      setPhotoMsg({ text: "Profile photo updated.", error: false });
+    } catch (err) {
+      setPhotoMsg({ text: err.isAxiosError ? errText(err) : err.message, error: true });
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
+
+  async function removePhoto() {
+    setPhotoMsg({ text: "", error: false });
+    setPhotoBusy(true);
+    try {
+      await api.delete("/account/photo");
+      localStorage.removeItem("photo");
+      setHasPhoto(false);
+      window.dispatchEvent(new Event("photo-changed"));
+      setPhotoMsg({ text: "Profile photo removed.", error: false });
+    } catch (err) {
+      setPhotoMsg({ text: errText(err), error: true });
+    } finally {
+      setPhotoBusy(false);
+    }
   }
 
   async function submit(e) {
@@ -53,12 +109,34 @@ export default function Profile() {
       <h2 className="mb-3">Profile</h2>
 
       <div className="product-card" style={{ maxWidth: 520 }}>
-        <div className="text-secondary small">Name</div>
-        <div className="mb-2 fw-bold">{me.name}</div>
-        <div className="text-secondary small">Email</div>
-        <div className="mb-2">{me.email}</div>
-        <div className="text-secondary small">Role</div>
-        <span className="app-role">{me.role}</span>
+        <div className="d-flex align-items-center gap-3">
+          <Avatar size={84} />
+          <div>
+            <div className="fw-bold">{me.name}</div>
+            <div className="text-secondary small">{me.email}</div>
+            <span className="app-role">{me.role}</span>
+          </div>
+        </div>
+
+        <div className="d-flex flex-wrap gap-2 mt-3">
+          <button type="button" className="btn btn-sm btn-outline-light" disabled={photoBusy} onClick={() => galleryRef.current.click()}>
+            Choose from gallery
+          </button>
+          <button type="button" className="btn btn-sm btn-outline-light" disabled={photoBusy} onClick={() => cameraRef.current.click()}>
+            Take a photo
+          </button>
+          {hasPhoto && (
+            <button type="button" className="btn btn-sm btn-outline-danger" disabled={photoBusy} onClick={removePhoto}>
+              Remove photo
+            </button>
+          )}
+        </div>
+        {photoBusy && <div className="text-secondary small mt-2">Saving photo...</div>}
+        {photoMsg.text && (
+          <div className={"alert py-2 mt-3 mb-0 " + (photoMsg.error ? "alert-danger" : "alert-success")}>{photoMsg.text}</div>
+        )}
+        <input ref={galleryRef} type="file" accept="image/*" hidden onChange={pick} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="user" hidden onChange={pick} />
       </div>
 
       <form className="product-card" style={{ maxWidth: 520 }} onSubmit={submit}>

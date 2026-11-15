@@ -92,6 +92,15 @@ public interface ApiService {
     @POST("orders/{id}/cancel")
     Call<ResponseBody> cancelOrder(@Path("id") long id);
 
+    @GET("account/photo")
+    Call<com.bxostock.app.model.PhotoResponse> getPhoto();
+
+    @PUT("account/photo")
+    Call<com.bxostock.app.model.PhotoResponse> savePhoto(@Body com.bxostock.app.model.PhotoRequest body);
+
+    @DELETE("account/photo")
+    Call<com.bxostock.app.model.PhotoResponse> deletePhoto();
+
     @POST("account/change-password")
     Call<ResponseBody> changePassword(@Body ChangePasswordRequest body);
 

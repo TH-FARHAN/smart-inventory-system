@@ -30,5 +30,8 @@ public class User {
     private boolean active = true;
     private int failedAttempts = 0;
     private LocalDateTime lockedUntil;
+
+    @Column(columnDefinition = "text")
+    private String photo;   // small JPEG as a base64 data URL
     private LocalDateTime createdAt = LocalDateTime.now();
 }

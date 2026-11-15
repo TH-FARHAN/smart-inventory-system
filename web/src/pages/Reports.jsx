@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api from "../api";
 import { salesPdf, inventoryPdf } from "../pdfReports";
 
-const money = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
+const money = (n) => "\u20B9" + Number(n || 0).toLocaleString("en-IN");
 
 function errText(err) {
   if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
@@ -32,6 +32,9 @@ function SalesReport() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [returns, setReturns] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [names, setNames] = useState({});
 
   const badRange = from && to && from > to;
 
@@ -43,6 +46,23 @@ function SalesReport() {
       .catch((err) => { if (!ignore) setError(errText(err)); });
     return () => { ignore = true; };
   }, [from, to, badRange]);
+
+  useEffect(() => {
+    let ignore = false;
+    Promise.all([
+      api.get("/returns").catch(() => ({ data: [] })),
+      api.get("/orders").catch(() => ({ data: [] })),
+      api.get("/admin/users").catch(() => ({ data: [] })),
+    ]).then(([r, o, u]) => {
+      if (ignore) return;
+      setReturns(r.data);
+      setOrders(o.data);
+      const map = {};
+      u.data.forEach((x) => { map[x.email.toLowerCase()] = x.name; });
+      setNames(map);
+    });
+    return () => { ignore = true; };
+  }, []);
 
   function thisMonth() {
     setFrom(toInput(new Date(now.getFullYear(), now.getMonth(), 1)));
@@ -57,10 +77,60 @@ function SalesReport() {
     setTo(toInput(now));
   }
 
-  const kw = keyword.trim().toLowerCase();
-  const rows = (data?.byProduct || []).filter(
-    (p) => !kw || p.productName.toLowerCase().includes(kw) || (p.sku || "").toLowerCase().includes(kw)
+  // ---- figures built from returns and orders inside the chosen dates ----
+  const inRange = (iso) => {
+    const d = String(iso || "").slice(0, 10);
+    return (!from || d >= from) && (!to || d <= to);
+  };
+  const periodReturns = returns.filter((r) => inRange(r.createdAt));
+  const refunds = periodReturns.reduce((s, r) => s + Number(r.refundAmount), 0);
+
+  const returnLines = [];
+  periodReturns.forEach((r) =>
+    (r.items || []).forEach((l) =>
+      returnLines.push({
+        id: r.id, date: r.createdAt, orderId: r.orderId, productId: l.productId,
+        name: l.productName, sku: l.sku, qty: l.quantity, price: l.unitPrice,
+        refund: l.subtotal, reason: r.reason,
+      })
+    )
   );
+
+  const retQty = {};
+  const retAmt = {};
+  returnLines.forEach((l) => {
+    retQty[l.productId] = (retQty[l.productId] || 0) + Number(l.qty);
+    retAmt[l.productId] = (retAmt[l.productId] || 0) + Number(l.refund);
+  });
+  const products = (data?.byProduct || []).map((p) => ({
+    id: p.productId, name: p.productName, sku: p.sku, sold: p.quantitySold,
+    returned: retQty[p.productId] || 0,
+    net: Number(p.revenue) - (retAmt[p.productId] || 0),
+  }));
+
+  const owner = {};
+  orders.forEach((o) => { owner[o.id] = (o.createdBy || "unknown").toLowerCase(); });
+  const by = {};
+  const entry = (k) => {
+    if (!by[k]) by[k] = { email: k, orders: 0, sales: 0, cancelled: 0, refunds: 0 };
+    return by[k];
+  };
+  orders.forEach((o) => {
+    if (!inRange(o.createdAt)) return;
+    const e = entry((o.createdBy || "unknown").toLowerCase());
+    if (o.status === "CONFIRMED") { e.orders += 1; e.sales += Number(o.totalAmount); }
+    else e.cancelled += 1;
+  });
+  periodReturns.forEach((r) => { entry(owner[r.orderId] || "unknown").refunds += Number(r.refundAmount); });
+  const staff = Object.values(by)
+    .map((r) => ({ ...r, name: names[r.email] || r.email, net: r.sales - r.refunds }))
+    .sort((a, b) => b.net - a.net);
+
+  const gross = data ? Number(data.totalSales) + refunds : 0;
+  const extra = { gross, refunds, products, returnLines, staff };
+
+  const kw = keyword.trim().toLowerCase();
+  const rows = products.filter((p) => !kw || p.name.toLowerCase().includes(kw) || (p.sku || "").toLowerCase().includes(kw));
 
   return (
     <>
@@ -72,7 +142,7 @@ function SalesReport() {
           <button
             className="btn btn-sm btn-accent ms-auto"
             disabled={!data || badRange}
-            onClick={() => salesPdf(data, from, to)}
+            onClick={() => salesPdf(data, from, to, extra)}
           >
             Download PDF
           </button>
@@ -96,37 +166,34 @@ function SalesReport() {
       {data && (
         <>
           <div className="row g-3 mb-3">
-            <Card label="Total sales" value={money(data.totalSales)} accent />
+            <Card label="Gross sales" value={money(gross)} />
+            <Card label="Refunds (returns)" value={money(refunds)} />
+            <Card label="Net sales" value={money(data.totalSales)} accent />
             <Card label="Orders" value={data.totalOrders} />
             <Card label="Average order" value={money(data.averageOrderValue)} />
           </div>
 
+          <h5 className="mt-4 mb-2">Sales by product</h5>
           <input
-            type="search"
-            inputMode="search"
-            enterKeyHint="search"
-            className="form-control mb-3"
-            placeholder="Search products in this report"
-            autoComplete="off"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            type="search" inputMode="search" enterKeyHint="search" className="form-control mb-3"
+            placeholder="Search products in this report" autoComplete="off"
+            value={keyword} onChange={(e) => setKeyword(e.target.value)}
           />
-
           {rows.length === 0 && <p className="text-secondary">No sales in this period.</p>}
-
           {rows.length > 0 && (
-            <div className="table-responsive d-none d-md-block">
+            <div className="table-responsive">
               <table className="table table-dark align-middle">
                 <thead>
-                  <tr><th>Product</th><th>SKU</th><th className="text-end">Units sold</th><th className="text-end">Revenue</th></tr>
+                  <tr><th>Product</th><th>SKU</th><th className="text-end">Sold</th><th className="text-end">Returned</th><th className="text-end">Net revenue</th></tr>
                 </thead>
                 <tbody>
                   {rows.map((p) => (
-                    <tr key={p.productId}>
-                      <td>{p.productName}</td>
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
                       <td>{p.sku}</td>
-                      <td className="text-end">{p.quantitySold}</td>
-                      <td className="text-end">{money(p.revenue)}</td>
+                      <td className="text-end">{p.sold}</td>
+                      <td className="text-end">{p.returned > 0 ? <span className="text-danger">{p.returned}</span> : 0}</td>
+                      <td className="text-end">{money(p.net)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -134,18 +201,55 @@ function SalesReport() {
             </div>
           )}
 
-          <div className="d-md-none">
-            {rows.map((p) => (
-              <div className="product-card" key={p.productId}>
-                <strong>{p.productName}</strong>
-                <div className="text-secondary small">{p.sku}</div>
-                <div className="d-flex justify-content-between mt-2">
-                  <span>{p.quantitySold} sold</span>
-                  <strong>{money(p.revenue)}</strong>
-                </div>
-              </div>
-            ))}
-          </div>
+          <h5 className="mt-4 mb-2">Returned products</h5>
+          {returnLines.length === 0 && <p className="text-secondary">No returns in this period.</p>}
+          {returnLines.length > 0 && (
+            <div className="table-responsive">
+              <table className="table table-dark align-middle">
+                <thead>
+                  <tr><th>Return</th><th>Date</th><th>Order</th><th>Product</th><th className="text-end">Qty</th><th className="text-end">Price</th><th className="text-end">Refund</th><th>Reason</th></tr>
+                </thead>
+                <tbody>
+                  {returnLines.map((r, i) => (
+                    <tr key={i}>
+                      <td>#{r.id}</td>
+                      <td className="text-nowrap">{r.date ? new Date(r.date).toLocaleDateString("en-IN") : "-"}</td>
+                      <td>#{r.orderId}</td>
+                      <td>{r.name}</td>
+                      <td className="text-end">{r.qty}</td>
+                      <td className="text-end">{money(r.price)}</td>
+                      <td className="text-end">{money(r.refund)}</td>
+                      <td>{r.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h5 className="mt-4 mb-2">Staff performance</h5>
+          {staff.length === 0 && <p className="text-secondary">No staff activity in this period.</p>}
+          {staff.length > 0 && (
+            <div className="table-responsive">
+              <table className="table table-dark align-middle">
+                <thead>
+                  <tr><th>Staff</th><th className="text-end">Orders</th><th className="text-end">Sales</th><th className="text-end">Refunds</th><th className="text-end">Net sales</th><th className="text-end">Cancelled</th></tr>
+                </thead>
+                <tbody>
+                  {staff.map((r) => (
+                    <tr key={r.email}>
+                      <td>{r.name}<div className="text-secondary small">{r.email}</div></td>
+                      <td className="text-end">{r.orders}</td>
+                      <td className="text-end">{money(r.sales)}</td>
+                      <td className="text-end">{money(r.refunds)}</td>
+                      <td className="text-end">{money(r.net)}</td>
+                      <td className="text-end">{r.cancelled}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </>
@@ -189,14 +293,9 @@ function InventoryReport() {
       </div>
 
       <input
-        type="search"
-        inputMode="search"
-        enterKeyHint="search"
-        className="form-control mb-3"
-        placeholder="Search by name, SKU or category"
-        autoComplete="off"
-        value={keyword}
-        onChange={(e) => setKeyword(e.target.value)}
+        type="search" inputMode="search" enterKeyHint="search" className="form-control mb-3"
+        placeholder="Search by name, SKU or category" autoComplete="off"
+        value={keyword} onChange={(e) => setKeyword(e.target.value)}
       />
 
       {rows.length === 0 && <p className="text-secondary">No products found.</p>}

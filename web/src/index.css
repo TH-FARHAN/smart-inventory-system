@@ -524,3 +524,139 @@ input[type="date"] { color-scheme: dark; min-width: 150px; }
 .stat-card.clickable:hover { border-color: var(--accent); transform: translateY(-2px); }
 .row-link { color: inherit; text-decoration: none; }
 .row-link:hover { color: inherit; background: rgba(255, 255, 255, 0.04); }
+/* ---- login blend: black fading into red-orange ---- */
+.login-hero {
+  background:
+    radial-gradient(circle at 88% 96%, rgba(255, 77, 28, 0.95) 0%, rgba(255, 77, 28, 0.35) 32%, transparent 62%),
+    linear-gradient(135deg, #000000 0%, #070707 38%, #2b0f06 68%, #7a2409 100%);
+}
+/* ---- readable inputs on the dark theme ---- */
+.form-control,
+.form-select,
+input,
+textarea {
+  color: #f2f2f2;
+}
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+  color: #a3a3ad !important;
+  opacity: 1 !important;
+}
+.form-control:focus {
+  color: #ffffff;
+  border-color: #ff4d1c;
+  box-shadow: 0 0 0 0.2rem rgba(255, 77, 28, 0.2);
+}
+.form-control:disabled,
+.form-select:disabled {
+  color: #8a8a93;
+}
+/* date pickers: white calendar icon */
+input[type="date"] { color-scheme: dark; }
+/* browser autofill keeps the dark look */
+input:-webkit-autofill {
+  -webkit-text-fill-color: #f2f2f2;
+  transition: background-color 9999s ease-in-out 0s;
+}
+/* ---- login form blend: black fading into red-orange ---- */
+.login-shell { background: #050505; }
+
+.login-panel {
+  background:
+    radial-gradient(circle at 0% 100%, rgba(255, 77, 28, 0.55) 0%, rgba(255, 77, 28, 0.18) 38%, transparent 70%),
+    linear-gradient(225deg, #000000 0%, #080808 45%, #1c0a04 100%);
+}
+
+/* soft dark card so the form text stays easy to read */
+.login-form {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px 24px;
+  backdrop-filter: blur(4px);
+}
+
+/* phones and tablets: the logo panel is hidden, so the whole page gets the blend */
+@media (max-width: 899px) {
+  .login-shell { align-items: stretch; }
+  .login-panel {
+    min-height: 100vh;
+    min-height: 100dvh;
+    align-items: center;
+    padding: 24px 16px 32px;
+    background:
+      radial-gradient(circle at 50% 108%, rgba(255, 77, 28, 0.85) 0%, rgba(255, 77, 28, 0.3) 38%, transparent 70%),
+      linear-gradient(180deg, #000000 0%, #090909 45%, #2b0f06 100%);
+  }
+}
+/* ---- login no card: plain gradient background, form centred ---- */
+.login-form {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.login-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+@media (max-width: 899px) {
+  .login-shell {
+    align-items: stretch !important;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .login-panel {
+    min-height: 100vh;
+    min-height: 100dvh;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 24px 20px !important;
+  }
+  .login-form { padding: 0 !important; }
+  .login-mobile-brand { margin-bottom: 20px; text-align: center; }
+  .login-title,
+  .login-form .sub { text-align: center; }
+}
+/* ---- login seamless: one gradient for the whole page, no centre line ---- */
+.login-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 50% 112%, rgba(255, 77, 28, 0.9) 0%, rgba(255, 77, 28, 0.32) 38%, transparent 72%),
+    linear-gradient(180deg, #000000 0%, #070707 48%, #2b0f06 100%);
+}
+.login-hero,
+.login-panel {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 899px) {
+  .login-shell { align-items: center !important; }
+  .login-panel {
+    width: 100%;
+    min-height: 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 24px 20px !important;
+  }
+}
+/* ---- profile avatar ---- */
+.avatar { display: block; border-radius: 50%; object-fit: cover; border: 2px solid #ff4d1c; flex-shrink: 0; }
+.avatar-fallback { display: flex; align-items: center; justify-content: center; background: #1c1c1f; color: #ff4d1c; font-weight: 700; }
+/* ---- user card actions: two equal buttons under the role badge ---- */
+.user-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.user-actions .btn { width: 100%; white-space: nowrap; padding-left: 0.4rem; padding-right: 0.4rem; }

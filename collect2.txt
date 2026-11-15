@@ -1,0 +1,890 @@
+
+
+===== D:\smart-inventory-system\backend\src\main\java\backend\entity\User.java =====
+
+package backend.entity;
+
+import backend.enums.Role;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "users")
+@Getter @Setter @NoArgsConstructor
+public class User {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false, unique = true)
+    private String email;
+
+    @Column(nullable = false)
+    private String password;          // BCrypt hash, never plain text
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
+    private boolean active = true;
+    private int failedAttempts = 0;
+    private LocalDateTime lockedUntil;
+    private LocalDateTime createdAt = LocalDateTime.now();
+}
+
+===== D:\smart-inventory-system\android\app\src\main\java\com\bxostock\app\model\UserResponse.java =====
+
+package com.bxostock.app.model;
+
+public class UserResponse {
+    public long id;
+    public String name;
+    public String email;
+    public String role;
+    public boolean active;
+}
+package backend.dto;
+
+import backend.entity.User;
+
+public record UserResponse(Long id, String name, String email, String role, boolean active) {
+    public static UserResponse from(User u) {
+        return new UserResponse(u.getId(), u.getName(), u.getEmail(), u.getRole().name(), u.isActive());
+    }
+}
+
+===== D:\smart-inventory-system\backend\src\main\java\backend\controller\AuthController.java =====
+
+package backend.controller;
+
+import backend.dto.LoginRequest;
+import backend.dto.UserResponse;
+import backend.entity.User;
+import backend.repository.UserRepository;
+import backend.security.JwtService;
+import backend.service.AuditService;
+import backend.service.CaptchaService;
+import backend.service.LoginRateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDateTime;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+    private static final int CAPTCHA_AFTER = 3;
+    private static final int MAX_ATTEMPTS = 5;
+    private static final int LOCK_MINUTES = 15;
+
+    private final UserRepository users;
+    private final PasswordEncoder encoder;
+    private final JwtService jwt;
+    private final CaptchaService captcha;
+    private final LoginRateLimiter limiter;
+    private final AuditService audit;
+
+    @GetMapping("/captcha")
+    public Map<String, String> newCaptcha() {
+        return captcha.generate();
+    }
+
+    @PostMapping("/login")
+    public Map<String, Object> login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
+        String email = req.email().trim();
+        if (!limiter.allow(clientIp(http))) {
+            record(email, "LOGIN_RATE_LIMITED", "Too many requests from this IP", http);
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many requests. Please wait a minute.");
+        }
+        User user = users.findByEmailIgnoreCase(email)
+                .filter(User::isActive).orElse(null);
+        if (user == null) {
+            record(email, "LOGIN_FAILED", "Unknown or inactive account", http);
+            throw invalid();
+        }
+
+        if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
+            record(user.getEmail(), "LOGIN_BLOCKED", "Account is locked", http);
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Account temporarily locked. Try again later.");
+        }
+        if (user.getFailedAttempts() >= CAPTCHA_AFTER) {
+            if (req.captchaId() == null || req.captchaAnswer() == null) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_REQUIRED, "Captcha required");
+            }
+            if (!captcha.verify(req.captchaId(), req.captchaAnswer())) {
+                record(user.getEmail(), "CAPTCHA_FAILED", "Incorrect captcha answer", http);
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_REQUIRED, "Captcha incorrect");
+            }
+        }
+        if (!encoder.matches(req.password(), user.getPassword())) {
+            int attempts = user.getFailedAttempts() + 1;
+            if (attempts >= MAX_ATTEMPTS) {
+                user.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_MINUTES));
+                attempts = 0;
+                record(user.getEmail(), "ACCOUNT_LOCKED",
+                        "Locked for " + LOCK_MINUTES + " minutes after " + MAX_ATTEMPTS + " failed attempts", http);
+            }
+            user.setFailedAttempts(attempts);
+            users.save(user);
+            record(user.getEmail(), "LOGIN_FAILED", "Wrong password", http);
+            throw invalid();
+        }
+        user.setFailedAttempts(0);
+        user.setLockedUntil(null);
+        users.save(user);
+        record(user.getEmail(), "LOGIN_SUCCESS", "Role " + user.getRole().name(), http);
+
+        return Map.of("token", jwt.generate(user), "tokenType", "Bearer",
+                "name", user.getName(), "email", user.getEmail(), "role", user.getRole().name());
+    }
+
+    @GetMapping("/me")
+    public UserResponse me(Authentication auth) {
+        return users.findByEmail(auth.getName()).map(UserResponse::from)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+    }
+
+    @PostMapping("/logout")
+    public Map<String, String> logout(Authentication auth, HttpServletRequest http) {
+        if (auth != null) record(auth.getName(), "LOGOUT", null, http);
+        return Map.of("message", "Logged out");
+    }
+
+    private void record(String actor, String action, String details, HttpServletRequest http) {
+        try {
+            String a = actor == null ? "anonymous" : (actor.length() > 100 ? actor.substring(0, 100) : actor);
+            audit.log(a, action, details, clientIp(http));
+        } catch (Exception ignored) {
+            // an audit failure must never block a login
+        }
+    }
+
+    private String clientIp(HttpServletRequest r) {
+        String xff = r.getHeader("X-Forwarded-For");
+        return (xff != null && !xff.isBlank()) ? xff.split(",")[0].trim() : r.getRemoteAddr();
+    }
+
+    private ResponseStatusException invalid() {
+        return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+    }
+}
+
+===== D:\smart-inventory-system\backend\src\main\java\backend\controller\AdminUserController.java =====
+
+package backend.controller;
+
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+
+import backend.dto.CreateUserRequest;
+import backend.dto.UserResponse;
+import backend.entity.User;
+import backend.repository.UserRepository;
+import backend.service.AuditService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+
+@RestController
+@RequestMapping("/api/admin/users")
+@PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
+public class AdminUserController {
+    private final UserRepository users;
+    private final PasswordEncoder encoder;
+    private final AuditService audit;
+
+    @GetMapping
+    public List<UserResponse> list() {
+        return users.findAll().stream().map(UserResponse::from).toList();
+    }
+
+    @PostMapping
+    public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest req,
+                                               Authentication auth, HttpServletRequest http) {
+        String email = req.email().trim().toLowerCase();
+        if (users.findByEmailIgnoreCase(email).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
+        }
+        User u = new User();
+        u.setName(req.name().trim());
+        u.setEmail(email);
+        u.setPassword(encoder.encode(req.password()));
+        u.setRole(req.role());
+        users.save(u);
+        record(auth, "USER_CREATED", "Created " + u.getRole() + " account " + email, http);
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponse.from(u));
+    }
+
+    @PatchMapping("/{id}/deactivate")
+    @Transactional
+    public UserResponse deactivate(@PathVariable Long id, Authentication auth, HttpServletRequest http) {
+        User u = find(id);
+        if (u.getEmail().equalsIgnoreCase(auth.getName())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot deactivate your own account");
+        }
+        u.setActive(false);
+        record(auth, "USER_DEACTIVATED", "Deactivated " + u.getEmail(), http);
+        return UserResponse.from(u);
+    }
+
+    @PatchMapping("/{id}/activate")
+    @Transactional
+    public UserResponse activate(@PathVariable Long id, Authentication auth, HttpServletRequest http) {
+        User u = find(id);
+        u.setActive(true);
+        u.setFailedAttempts(0);
+        u.setLockedUntil(null);
+        record(auth, "USER_ACTIVATED", "Activated and unlocked " + u.getEmail(), http);
+        return UserResponse.from(u);
+    }
+
+    private void record(Authentication auth, String action, String details, HttpServletRequest http) {
+        try {
+            audit.log(auth.getName(), action, details, http.getRemoteAddr());
+        } catch (Exception ignored) {
+            // an audit failure must never block an admin action
+        }
+    }
+
+    private User find(Long id) {
+        return users.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+}
+
+===== D:\smart-inventory-system\backend\src\main\java\backend\config\SecurityConfig.java =====
+
+package backend.config;
+
+import backend.security.JwtAuthFilter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
+
+@Configuration
+@EnableMethodSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+    private final JwtAuthFilter jwtFilter;
+
+    @Bean
+    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(a -> a
+                    .requestMatchers("/api/auth/login", "/api/auth/captcha", "/error", "/actuator/health",
+                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                .anyRequest().authenticated())
+            .exceptionHandling(e -> e
+                .authenticationEntryPoint((req, res, ex) -> {
+                    res.setStatus(401);
+                    res.setContentType("application/json");
+                    res.getWriter().write("{\"message\":\"Unauthorized: please log in\"}");
+                })
+                .accessDeniedHandler((req, res, ex) -> {
+                    res.setStatus(403);
+                    res.setContentType("application/json");
+                    res.getWriter().write("{\"message\":\"Forbidden: you do not have permission\"}");
+                }))
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(@Value("${cors.origins}") String origins) {
+        CorsConfiguration c = new CorsConfiguration();
+        c.setAllowedOrigins(List.of(origins.split(",")));
+        c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        UrlBasedCorsConfigurationSource s = new UrlBasedCorsConfigurationSource();
+        s.registerCorsConfiguration("/**", c);
+        return s;
+    }
+}
+
+===== D:\smart-inventory-system\backend\src\main\java\backend\service\AuditService.java =====
+
+package backend.service;
+
+import backend.entity.AuditLog;
+import backend.repository.AuditLogRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class AuditService {
+    private final AuditLogRepository logs;
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void log(String actor, String action, String details, String ip) {
+        AuditLog l = new AuditLog();
+        l.setActor(actor == null ? "anonymous" : actor);
+        l.setAction(action);
+        l.setDetails(details != null && details.length() > 500 ? details.substring(0, 500) : details);
+        l.setIpAddress(ip);
+        logs.save(l);
+    }
+}
+
+===== D:\smart-inventory-system\backend\pom.xml =====
+
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.9</version>
+        <relativePath/>
+    </parent>
+    <groupId>com.inventory</groupId>
+    <artifactId>backend</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>backend</name>
+    <properties>
+        <java.version>17</java.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.6</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-gson</artifactId>
+            <version>0.12.6</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+===== D:\smart-inventory-system\web\src\pages\Profile.jsx =====
+
+import { useEffect, useState } from "react";
+import api from "../api";
+
+function errText(err) {
+  if (!err.response) return "Cannot reach the server. It may be waking up, so try again in a minute.";
+  const d = err.response.data;
+  if (d?.errors) return Object.values(d.errors).join(", ");
+  return d?.message || "Something went wrong.";
+}
+
+export default function Profile() {
+  const saved = JSON.parse(localStorage.getItem("user") || "{}");
+  const [me, setMe] = useState(saved);
+  const [form, setForm] = useState({ current: "", next: "", confirm: "" });
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.get("/auth/me").then((r) => setMe(r.data)).catch(() => {});
+  }, []);
+
+  function change(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setOk("");
+    if (form.next.length < 8) return setError("The new password must be at least 8 characters.");
+    if (form.next !== form.confirm) return setError("The new passwords do not match.");
+    setSaving(true);
+    try {
+      await api.post("/account/change-password", {
+        currentPassword: form.current,
+        newPassword: form.next,
+      });
+      setForm({ current: "", next: "", confirm: "" });
+      setOk("Password changed. Use the new password next time you sign in.");
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const type = show ? "text" : "password";
+
+  return (
+    <div>
+      <h2 className="mb-3">Profile</h2>
+
+      <div className="product-card" style={{ maxWidth: 520 }}>
+        <div className="text-secondary small">Name</div>
+        <div className="mb-2 fw-bold">{me.name}</div>
+        <div className="text-secondary small">Email</div>
+        <div className="mb-2">{me.email}</div>
+        <div className="text-secondary small">Role</div>
+        <span className="app-role">{me.role}</span>
+      </div>
+
+      <form className="product-card" style={{ maxWidth: 520 }} onSubmit={submit}>
+        <h5 className="mb-3">Change password</h5>
+        {error && <div className="alert alert-danger py-2">{error}</div>}
+        {ok && <div className="alert alert-success py-2">{ok}</div>}
+
+        <label className="form-label">Current password</label>
+        <input type={type} name="current" autoComplete="current-password" className="form-control mb-3" value={form.current} onChange={change} required />
+
+        <label className="form-label">New password (min 8 characters)</label>
+        <input type={type} name="next" autoComplete="new-password" className="form-control mb-3" value={form.next} onChange={change} required />
+
+        <label className="form-label">Confirm new password</label>
+        <input type={type} name="confirm" autoComplete="new-password" className="form-control mb-3" value={form.confirm} onChange={change} required />
+
+        <div className="form-check mb-3">
+          <input id="showpw" type="checkbox" className="form-check-input" checked={show} onChange={(e) => setShow(e.target.checked)} />
+          <label htmlFor="showpw" className="form-check-label text-secondary">Show passwords while typing</label>
+        </div>
+
+        <button className="btn btn-accent w-100" disabled={saving}>
+          {saving ? "Saving..." : "Change password"}
+        </button>
+        <div className="text-secondary small mt-3">
+          Passwords are stored hashed, so nobody, including an admin, can read them. An admin can only reset one.
+        </div>
+      </form>
+    </div>
+  );
+}
+
+===== D:\smart-inventory-system\web\src\App.jsx =====
+
+import { Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Products from "./pages/Products";
+import Inventory from "./pages/Inventory";
+import Layout from "./components/Layout";
+import Customers from "./pages/Customers";
+import Orders from "./pages/Orders";
+import Users from "./pages/Users";
+import Categories from "./pages/Categories";
+import AuditLogs from "./pages/AuditLogs";
+import Reports from "./pages/Reports";
+import Returns from "./pages/Returns";
+import Suppliers from "./pages/Suppliers";
+import Profile from "./pages/Profile";
+import StaffPerformance from "./pages/StaffPerformance";
+
+function Protected({ children }) {
+  return localStorage.getItem("token") ? children : <Navigate to="/login" replace />;
+}
+
+function AdminOnly({ children }) {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  return user.role === "ADMIN" ? children : <Navigate to="/" replace />;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route element={<Protected><Layout /></Protected>}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/products" element={<Products />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/customers" element={<Customers />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/returns" element={<Returns />} />
+        <Route path="/suppliers" element={<AdminOnly><Suppliers /></AdminOnly>} />
+        <Route path="/users" element={<AdminOnly><Users /></AdminOnly>} />
+        <Route path="/categories" element={<AdminOnly><Categories /></AdminOnly>} />
+        <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
+        <Route path="/audit-logs" element={<AdminOnly><AuditLogs /></AdminOnly>} />
+        <Route path="/staff-performance" element={<AdminOnly><StaffPerformance /></AdminOnly>} />
+        <Route path="/profile" element={<Profile />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+===== D:\smart-inventory-system\android\app\src\main\java\com\bxostock\app\api\ApiService.java =====
+
+package com.bxostock.app.api;
+
+import com.bxostock.app.model.AuditLog;
+import com.bxostock.app.model.ChangePasswordRequest;
+import com.bxostock.app.model.ResetPasswordRequest;
+import com.bxostock.app.model.CaptchaResponse;
+import com.bxostock.app.model.Category;
+import com.bxostock.app.model.CategoryRequest;
+import com.bxostock.app.model.CreateUserRequest;
+import com.bxostock.app.model.Customer;
+import com.bxostock.app.model.CustomerRequest;
+import com.bxostock.app.model.DashboardResponse;
+import com.bxostock.app.model.InventoryReport;
+import com.bxostock.app.model.LoginRequest;
+import com.bxostock.app.model.LoginResponse;
+import com.bxostock.app.model.OrderRequest;
+import com.bxostock.app.model.OrderResponse;
+import com.bxostock.app.model.Product;
+import com.bxostock.app.model.ProductRequest;
+import com.bxostock.app.model.SalesReport;
+import com.bxostock.app.model.StockRequest;
+import com.bxostock.app.model.UserResponse;
+
+import java.util.List;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.http.Body;
+import retrofit2.http.DELETE;
+import retrofit2.http.GET;
+import retrofit2.http.PATCH;
+import retrofit2.http.POST;
+import retrofit2.http.PUT;
+import retrofit2.http.Path;
+import retrofit2.http.Query;
+
+public interface ApiService {
+    @POST("auth/login")
+    Call<LoginResponse> login(@Body LoginRequest body);
+
+    @GET("auth/captcha")
+    Call<CaptchaResponse> captcha();
+
+    @POST("auth/logout")
+    Call<Void> logout();
+
+    @GET("dashboard")
+    Call<DashboardResponse> dashboard();
+
+    @GET("categories")
+    Call<List<Category>> categories();
+
+    @POST("categories")
+    Call<Category> addCategory(@Body CategoryRequest body);
+
+    @GET("products")
+    Call<List<Product>> products(@Query("keyword") String keyword);
+
+    @POST("products")
+    Call<Product> addProduct(@Body ProductRequest body);
+
+    @PUT("products/{id}")
+    Call<Product> updateProduct(@Path("id") long id, @Body ProductRequest body);
+
+    @DELETE("products/{id}")
+    Call<ResponseBody> deleteProduct(@Path("id") long id);
+
+    @GET("inventory/low-stock")
+    Call<List<Product>> lowStock();
+
+    @POST("inventory/stock-in")
+    Call<Product> stockIn(@Body StockRequest body);
+
+    @POST("inventory/stock-out")
+    Call<Product> stockOut(@Body StockRequest body);
+
+    @GET("customers")
+    Call<List<Customer>> customers(@Query("keyword") String keyword);
+
+    @POST("customers")
+    Call<Customer> addCustomer(@Body CustomerRequest body);
+
+    @PUT("customers/{id}")
+    Call<Customer> updateCustomer(@Path("id") long id, @Body CustomerRequest body);
+
+    @GET("orders")
+    Call<List<OrderResponse>> orders();
+
+    @POST("orders")
+    Call<OrderResponse> placeOrder(@Body OrderRequest body);
+
+    @POST("orders/{id}/cancel")
+    Call<ResponseBody> cancelOrder(@Path("id") long id);
+
+    @POST("account/change-password")
+    Call<ResponseBody> changePassword(@Body ChangePasswordRequest body);
+
+    @PATCH("admin/users/{id}/reset-password")
+    Call<ResponseBody> resetPassword(@Path("id") long id, @Body ResetPasswordRequest body);
+
+    // ----- returns, suppliers, purchases -----
+    @GET("returns")
+    Call<java.util.List<com.bxostock.app.model.ReturnResponse>> returnsList();
+
+    @GET("returns/order/{id}/returnable")
+    Call<java.util.List<com.bxostock.app.model.Returnable>> returnable(@Path("id") long id);
+
+    @POST("returns")
+    Call<com.bxostock.app.model.ReturnResponse> createReturn(@Body com.bxostock.app.model.ReturnRequest body);
+
+    @GET("suppliers")
+    Call<java.util.List<com.bxostock.app.model.Supplier>> suppliers();
+
+    @POST("suppliers")
+    Call<com.bxostock.app.model.Supplier> addSupplier(@Body com.bxostock.app.model.SupplierRequest body);
+
+    @PUT("suppliers/{id}")
+    Call<com.bxostock.app.model.Supplier> updateSupplier(@Path("id") long id, @Body com.bxostock.app.model.SupplierRequest body);
+
+    @GET("purchases")
+    Call<java.util.List<com.bxostock.app.model.PurchaseResponse>> purchases();
+
+    @POST("purchases")
+    Call<com.bxostock.app.model.PurchaseResponse> createPurchase(@Body com.bxostock.app.model.PurchaseRequest body);
+
+    @POST("purchases/{id}/receive")
+    Call<com.bxostock.app.model.PurchaseResponse> receivePurchase(@Path("id") long id);
+
+    @POST("purchases/{id}/cancel")
+    Call<com.bxostock.app.model.PurchaseResponse> cancelPurchase(@Path("id") long id);
+
+    // ----- admin only -----
+    @GET("admin/users")
+    Call<List<UserResponse>> users();
+
+    @POST("admin/users")
+    Call<UserResponse> addUser(@Body CreateUserRequest body);
+
+    @PATCH("admin/users/{id}/activate")
+    Call<UserResponse> activateUser(@Path("id") long id);
+
+    @PATCH("admin/users/{id}/deactivate")
+    Call<UserResponse> deactivateUser(@Path("id") long id);
+
+    @GET("admin/audit-logs")
+    Call<List<AuditLog>> auditLogs();
+
+    @GET("reports/sales")
+    Call<SalesReport> salesReport(@Query("from") String from, @Query("to") String to);
+
+    @GET("reports/inventory")
+    Call<InventoryReport> inventoryReport();
+}
+
+===== D:\smart-inventory-system\android\app\src\main\java\com\bxostock\app\util\TokenStore.java =====
+
+package com.bxostock.app.util;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+public class TokenStore {
+    private static SharedPreferences sp(Context c) {
+        return c.getApplicationContext().getSharedPreferences("bxostock", Context.MODE_PRIVATE);
+    }
+
+    public static void save(Context c, String token, String name, String email, String role) {
+        sp(c).edit().putString("token", token).putString("name", name)
+                .putString("email", email).putString("role", role).apply();
+    }
+
+    public static String token(Context c) { return sp(c).getString("token", null); }
+    public static String name(Context c) { return sp(c).getString("name", ""); }
+    public static String email(Context c) { return sp(c).getString("email", ""); }
+    public static String role(Context c) { return sp(c).getString("role", ""); }
+    public static boolean isLoggedIn(Context c) { return token(c) != null; }
+    public static void clear(Context c) { sp(c).edit().clear().apply(); }
+}
+
+===== D:\smart-inventory-system\android\app\src\main\java\com\bxostock\app\ProfileFragment.java =====
+
+package com.bxostock.app;
+
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+
+import com.bxostock.app.api.ApiClient;
+import com.bxostock.app.model.ChangePasswordRequest;
+import com.bxostock.app.util.ApiError;
+import com.bxostock.app.util.Session;
+import com.bxostock.app.util.TokenStore;
+import com.google.android.material.textfield.TextInputEditText;
+
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+public class ProfileFragment extends Fragment {
+    private TextInputEditText etCurrent, etNew, etConfirm;
+    private TextView tvMessage;
+    private View btn;
+
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle s) {
+        return inflater.inflate(R.layout.fragment_profile, container, false);
+    }
+
+    @Override
+    public void onViewCreated(@NonNull View v, @Nullable Bundle s) {
+        super.onViewCreated(v, s);
+        ((TextView) v.findViewById(R.id.tvName)).setText(TokenStore.name(requireContext()));
+        ((TextView) v.findViewById(R.id.tvEmail)).setText(TokenStore.email(requireContext()));
+        ((TextView) v.findViewById(R.id.tvRole)).setText(TokenStore.role(requireContext()));
+        etCurrent = v.findViewById(R.id.etCurrent);
+        etNew = v.findViewById(R.id.etNew);
+        etConfirm = v.findViewById(R.id.etConfirm);
+        tvMessage = v.findViewById(R.id.tvMessage);
+        btn = v.findViewById(R.id.btnChange);
+        btn.setOnClickListener(x -> submit());
+    }
+
+    private void msg(String text, boolean error) {
+        tvMessage.setTextColor(error ? 0xFFFF6B6B : 0xFF3DDC84);
+        tvMessage.setText(text);
+        tvMessage.setVisibility(View.VISIBLE);
+    }
+
+    private void submit() {
+        String cur = etCurrent.getText().toString();
+        String nw = etNew.getText().toString();
+        String cf = etConfirm.getText().toString();
+        if (cur.isEmpty()) { msg("Enter your current password.", true); return; }
+        if (nw.length() < 8) { msg("The new password must be at least 8 characters.", true); return; }
+        if (!nw.equals(cf)) { msg("The new passwords do not match.", true); return; }
+        ChangePasswordRequest req = new ChangePasswordRequest();
+        req.currentPassword = cur;
+        req.newPassword = nw;
+        btn.setEnabled(false);
+        ApiClient.get(requireContext()).changePassword(req).enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> c, Response<ResponseBody> r) {
+                if (!isAdded()) return;
+                btn.setEnabled(true);
+                if (r.isSuccessful()) {
+                    etCurrent.setText("");
+                    etNew.setText("");
+                    etConfirm.setText("");
+                    msg("Password changed. Use the new password next time you sign in.", false);
+                } else if (r.code() == 401) {
+                    Session.expire(requireActivity(), true);
+                } else {
+                    msg(ApiError.message(r), true);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> c, Throwable t) {
+                if (!isAdded()) return;
+                btn.setEnabled(true);
+                msg(ApiError.NETWORK, true);
+            }
+        });
+    }
+}

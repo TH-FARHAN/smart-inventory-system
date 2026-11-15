@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import api from "../api";
 import Brand from "./Brand";
+import Avatar from "./Avatar";
 
 // groups shown as dropdowns; adminOnly items are hidden from STAFF
 const GROUPS = [
@@ -71,7 +72,7 @@ export default function Layout() {
         <button className="menu-btn" onClick={() => setOpen(true)} aria-label="Open menu">
           ☰
         </button>
-        <Brand variant="icon" width={36} />
+        <Brand width={140} />
       </header>
 
       {open && <div className="overlay" onClick={() => setOpen(false)} />}
@@ -129,7 +130,7 @@ export default function Layout() {
           <div>
             <span className="app-role">{user.role}</span>
           </div>
-          <div className="app-name">{user.name}</div>
+          <div className="d-flex align-items-center gap-2 mb-2"><Avatar size={44} /><div className="app-name m-0">{user.name}</div></div>
           <button className="btn btn-sm btn-outline-light" onClick={logout}>
             Log out
           </button>

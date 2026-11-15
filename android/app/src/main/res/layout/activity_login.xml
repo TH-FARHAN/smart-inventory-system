@@ -8,23 +8,26 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
         android:orientation="vertical"
         android:padding="24dp">
 
         <ImageView
             android:layout_width="220dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_gravity="center_horizontal"
             android:adjustViewBounds="true"
             android:contentDescription="BxoStock"
             android:src="@drawable/logo_full" />
 
         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:layout_marginTop="24dp" android:text="Sign in" android:textSize="26sp"
             android:textStyle="bold" />
         <TextView android:id="@+id/tvSub" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:text="Owner or manager access"
+            android:layout_height="wrap_content" android:layout_gravity="center_horizontal"
+            android:text="Owner or manager access"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
         <com.google.android.material.button.MaterialButtonToggleGroup
