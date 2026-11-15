@@ -31,6 +31,12 @@ public class User {
     private int failedAttempts = 0;
     private LocalDateTime lockedUntil;
 
+    // password reset by email code (admin only)
+    private String resetOtpHash;
+    private LocalDateTime resetOtpExpiresAt;
+    private LocalDateTime resetOtpSentAt;
+    private Integer resetOtpAttempts;
+
     @Column(columnDefinition = "text")
     private String photo;   // small JPEG as a base64 data URL
     private LocalDateTime createdAt = LocalDateTime.now();

@@ -1,10 +1,14 @@
 package com.bxostock.app;
 
+import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 
 import com.bxostock.app.api.ApiClient;
@@ -12,10 +16,15 @@ import com.bxostock.app.model.CreateUserRequest;
 import com.bxostock.app.model.UserResponse;
 import com.bxostock.app.util.ApiError;
 import com.bxostock.app.util.TokenStore;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import okhttp3.ResponseBody;
 import com.bxostock.app.model.ResetPasswordRequest;
@@ -24,21 +33,120 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class UsersFragment extends BaseListFragment<UserResponse> {
+    private int status = 0; // 0 = all, 1 = active, 2 = inactive
+    private Chip chipAll, chipActive, chipInactive;
+    private Map<Long, String> photos = new HashMap<>();
+    private List<UserResponse> lastItems = new ArrayList<>();
+    private long photosAt = 0;
+
     @Override protected String searchHint() { return "Search name, email or role"; }
     @Override protected String actionLabel() { return "Add"; }
     @Override protected void onAction() { showAdd(); }
+
+    @Override
+    public void onViewCreated(@NonNull View v, @Nullable Bundle s) {
+        super.onViewCreated(v, s);
+        View rv = v.findViewById(R.id.recycler);
+        // if the layout is not what we expect, skip the chips: the list still works
+        if (rv == null || !(rv.getParent() instanceof LinearLayout)) return;
+        LinearLayout parent = (LinearLayout) rv.getParent();
+
+        ChipGroup group = new ChipGroup(requireContext());
+        group.setSingleSelection(true);
+        group.setSelectionRequired(true);
+        chipAll = makeChip("All");
+        chipActive = makeChip("Active");
+        chipInactive = makeChip("Inactive");
+        group.addView(chipAll);
+        group.addView(chipActive);
+        group.addView(chipInactive);
+        chipAll.setChecked(true);
+        group.setOnCheckedStateChangeListener((g, ids) -> {
+            if (ids.isEmpty()) return;
+            int id = ids.get(0);
+            int next = id == chipActive.getId() ? 1 : id == chipInactive.getId() ? 2 : 0;
+            if (next != status) {
+                status = next;
+                reload();
+            }
+        });
+
+        int m = (int) (4 * getResources().getDisplayMetrics().density);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, m, 0, m);
+        parent.addView(group, parent.indexOfChild(rv), lp);
+    }
+
+    private Chip makeChip(String text) {
+        Chip c = new Chip(requireContext());
+        c.setId(View.generateViewId());
+        c.setCheckable(true);
+        c.setText(text);
+        return c;
+    }
+
+    // loads the list as usual, and refreshes the photos at most every 30 seconds
+    @Override
+    protected void reload() {
+        super.reload();
+        if (!isAdded()) return;
+        long now = System.currentTimeMillis();
+        if (photosAt != 0 && now - photosAt < 30_000) return;
+        photosAt = now;
+        ApiClient.get(requireContext()).userPhotos().enqueue(new Callback<Map<Long, String>>() {
+            @Override
+            public void onResponse(Call<Map<Long, String>> c, Response<Map<Long, String>> r) {
+                if (!isAdded() || getView() == null || !r.isSuccessful() || r.body() == null) return;
+                photos = r.body();
+                rebuild();
+            }
+
+            @Override
+            public void onFailure(Call<Map<Long, String>> c, Throwable t) { }
+        });
+    }
+
+    private void rebuild() {
+        if (adapter == null || lastItems.isEmpty()) return;
+        List<Row> rows = new ArrayList<>();
+        for (UserResponse u : lastItems) {
+            Row row = toRow(u);
+            row.tag = u;
+            rows.add(row);
+        }
+        adapter.set(rows);
+    }
 
     @Override
     protected Call<List<UserResponse>> request(String kw) {
         return ApiClient.get(requireContext()).users();
     }
 
+    // the search text filters here; the status chips filter in sort() so the counts stay right
     @Override
     protected boolean matches(UserResponse u, String k) {
         if (k.isEmpty()) return true;
         return u.name.toLowerCase(Locale.ROOT).contains(k)
                 || u.email.toLowerCase(Locale.ROOT).contains(k)
                 || u.role.toLowerCase(Locale.ROOT).contains(k);
+    }
+
+    @Override
+    protected void sort(List<UserResponse> items) {
+        int a = 0, i = 0;
+        for (UserResponse u : items) {
+            if (u.active) a++;
+            else i++;
+        }
+        if (chipAll != null) {
+            chipAll.setText("All (" + (a + i) + ")");
+            chipActive.setText("Active (" + a + ")");
+            chipInactive.setText("Inactive (" + i + ")");
+        }
+        if (status == 1) items.removeIf(u -> !u.active);
+        else if (status == 2) items.removeIf(u -> u.active);
+        lastItems = new ArrayList<>(items);
     }
 
     @Override
@@ -49,6 +157,8 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
         r.right = u.role;
         r.rightSub = u.active ? "Active" : "Inactive";
         r.warn = !u.active;
+        r.avatarName = u.name;
+        r.photo = photos.get(u.id);
         return r;
     }
 

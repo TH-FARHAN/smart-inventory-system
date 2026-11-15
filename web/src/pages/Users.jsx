@@ -12,6 +12,16 @@ function errText(err) {
   return d?.message || "Something went wrong.";
 }
 
+function UserAvatar({ u, photos, size = 40 }) {
+  const p = photos[u.id];
+  if (p) return <img src={p} alt="" className="avatar" style={{ width: size, height: size }} />;
+  return (
+    <div className="avatar avatar-fallback" style={{ width: size, height: size, fontSize: size * 0.42 }}>
+      {(u.name || "?").trim().charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 function ActiveBadge({ active }) {
   return <span className={"badge " + (active ? "bg-success" : "bg-secondary")}>{active ? "Active" : "Inactive"}</span>;
 }
@@ -22,6 +32,7 @@ export default function Users() {
   const me = JSON.parse(localStorage.getItem("user") || "{}");
   const [users, setUsers] = useState([]);
   const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,12 +58,20 @@ export default function Users() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  const [photos, setPhotos] = useState({});
+  useEffect(() => {
+    api.get("/admin/user-photos").then((r) => setPhotos(r.data || {})).catch(() => {});
+  }, [refreshKey]);
+
   const kw = keyword.trim().toLowerCase();
-  const shown = users.filter(
+  const shown = users.filter((u) => statusFilter === "ALL" || (statusFilter === "ACTIVE" ? u.active : !u.active)).filter(
     (u) => !kw || u.name.toLowerCase().includes(kw) || u.email.toLowerCase().includes(kw) || u.role.toLowerCase().includes(kw)
   );
 
   const isMe = (u) => u.email.toLowerCase() === (me.email || "").toLowerCase();
+
+  const activeCount = users.filter((u) => u.active).length;
+  const inactiveCount = users.length - activeCount;
 
   function change(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -135,7 +154,20 @@ export default function Users() {
         onChange={(e) => setKeyword(e.target.value)}
       />
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+      <div className="status-filter" role="tablist">
+        {[["ALL", "All", users.length], ["ACTIVE", "Active", activeCount], ["INACTIVE", "Inactive", inactiveCount]].map(([key, label, n]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === key}
+            className={"status-chip" + (statusFilter === key ? " active" : "")}
+            onClick={() => setStatusFilter(key)}
+          >
+            {label} <span className="status-count">{n}</span>
+          </button>
+        ))}
+      </div>{error && <div className="alert alert-danger py-2">{error}</div>}
       {loading && <p className="text-secondary">Loading...</p>}
       {!loading && !error && shown.length === 0 && <p className="text-secondary">No users found.</p>}
 
@@ -148,7 +180,7 @@ export default function Users() {
             <tbody>
               {shown.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.name}</td>
+                  <td><div className="d-flex align-items-center gap-2"><UserAvatar u={u} photos={photos} />{u.name}</div></td>
                   <td>{u.email}</td>
                   <td>{u.role}</td>
                   <td><ActiveBadge active={u.active} /></td>
@@ -164,7 +196,7 @@ export default function Users() {
         {shown.map((u) => (
           <div className="product-card" key={u.id}>
             <div className="d-flex justify-content-between">
-              <strong>{u.name}</strong>
+              <div className="d-flex align-items-center gap-2"><UserAvatar u={u} photos={photos} size={44} /><strong>{u.name}</strong></div>
               <ActiveBadge active={u.active} />
             </div>
             <div className="text-secondary small">{u.email}</div>

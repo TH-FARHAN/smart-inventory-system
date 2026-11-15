@@ -21,3 +21,12 @@ build/
 # editor
 .idea/
 .vscode/
+*.bak
+*.orig
+*.rej
+*.tmp
+collect*.txt
+*.zip
+*.log
+
+*.bak*

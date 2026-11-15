@@ -139,6 +139,9 @@ public interface ApiService {
     Call<com.bxostock.app.model.PurchaseResponse> cancelPurchase(@Path("id") long id);
 
     // ----- admin only -----
+    @GET("admin/user-photos")
+    Call<java.util.Map<Long, String>> userPhotos();
+
     @GET("admin/users")
     Call<List<UserResponse>> users();
 
@@ -150,6 +153,12 @@ public interface ApiService {
 
     @PATCH("admin/users/{id}/deactivate")
     Call<UserResponse> deactivateUser(@Path("id") long id);
+
+    @POST("auth/forgot-password")
+    Call<ResponseBody> forgotPassword(@Body java.util.Map<String, String> body);
+
+    @POST("auth/reset-password")
+    Call<ResponseBody> resetWithCode(@Body java.util.Map<String, String> body);
 
     @GET("admin/audit-logs")
     Call<List<AuditLog>> auditLogs();

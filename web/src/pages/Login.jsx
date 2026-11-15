@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../api";
 import Brand from "../components/Brand";
 
@@ -153,6 +153,17 @@ export default function Login() {
               </button>
             </div>
           </div>
+
+          {role === "ADMIN" && (
+            <div className="text-end mb-3" style={{ marginTop: -8 }}>
+              <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
+            </div>
+          )}
+          {role === "STAFF" && (
+            <div className="text-secondary small mb-3" style={{ marginTop: -8 }}>
+              Forgot your password? Ask your admin to reset it.
+            </div>
+          )}
 
           {captcha && (
             <div className="captcha-box mb-3">

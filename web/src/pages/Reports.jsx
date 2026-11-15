@@ -25,6 +25,15 @@ function Card({ label, value, accent }) {
   );
 }
 
+function Stat({ label, value }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+    </div>
+  );
+}
+
 function SalesReport() {
   const now = new Date();
   const [from, setFrom] = useState(toInput(new Date(now.getFullYear(), now.getMonth(), 1)));
@@ -131,33 +140,34 @@ function SalesReport() {
 
   const kw = keyword.trim().toLowerCase();
   const rows = products.filter((p) => !kw || p.name.toLowerCase().includes(kw) || (p.sku || "").toLowerCase().includes(kw));
+  const day = (s) => (s ? new Date(s).toLocaleDateString("en-IN") : "-");
 
   return (
     <>
-      <div className="product-card mb-3">
-        <div className="d-flex flex-wrap gap-2 mb-3">
+      <div className="rpt-card">
+        <div className="rpt-label">Quick range</div>
+        <div className="rpt-chips">
           <button className="btn btn-sm btn-outline-light" onClick={thisMonth}>This month</button>
           <button className="btn btn-sm btn-outline-light" onClick={lastMonth}>Last month</button>
           <button className="btn btn-sm btn-outline-light" onClick={thisYear}>This year</button>
-          <button
-            className="btn btn-sm btn-accent ms-auto"
-            disabled={!data || badRange}
-            onClick={() => salesPdf(data, from, to, extra)}
-          >
-            Download PDF
-          </button>
         </div>
-        <div className="d-flex flex-wrap gap-3">
+
+        <div className="rpt-label">Custom dates</div>
+        <div className="rpt-dates">
           <div>
-            <label className="form-label mb-1">From</label>
+            <label className="form-label">From</label>
             <input type="date" className="form-control" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
-            <label className="form-label mb-1">To</label>
+            <label className="form-label">To</label>
             <input type="date" className="form-control" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
-        {badRange && <div className="alert alert-warning py-2 mt-3 mb-0">The From date must be before the To date.</div>}
+        {badRange && <div className="alert alert-warning py-2 mb-3">The From date must be before the To date.</div>}
+
+        <button className="btn btn-accent rpt-download" disabled={!data || badRange} onClick={() => salesPdf(data, from, to, extra)}>
+          Download PDF
+        </button>
       </div>
 
       {error && <div className="alert alert-danger py-2">{error}</div>}
@@ -165,15 +175,19 @@ function SalesReport() {
 
       {data && (
         <>
-          <div className="row g-3 mb-3">
-            <Card label="Gross sales" value={money(gross)} />
-            <Card label="Refunds (returns)" value={money(refunds)} />
-            <Card label="Net sales" value={money(data.totalSales)} accent />
-            <Card label="Orders" value={data.totalOrders} />
-            <Card label="Average order" value={money(data.averageOrderValue)} />
+          <div className="rpt-hero">
+            <div className="stat-label">Net sales</div>
+            <div className="rpt-hero-value">{money(data.totalSales)}</div>
+            <div className="rpt-hero-sub">Gross sales minus refunds</div>
+          </div>
+          <div className="rpt-stats">
+            <Stat label="Gross sales" value={money(gross)} />
+            <Stat label="Refunds (returns)" value={money(refunds)} />
+            <Stat label="Orders" value={data.totalOrders} />
+            <Stat label="Average order" value={money(data.averageOrderValue)} />
           </div>
 
-          <h5 className="mt-4 mb-2">Sales by product</h5>
+          <div className="rpt-h"><span>Sales by product</span><span className="rpt-count">{rows.length} items</span></div>
           <input
             type="search" inputMode="search" enterKeyHint="search" className="form-control mb-3"
             placeholder="Search products in this report" autoComplete="off"
@@ -181,74 +195,116 @@ function SalesReport() {
           />
           {rows.length === 0 && <p className="text-secondary">No sales in this period.</p>}
           {rows.length > 0 && (
-            <div className="table-responsive">
-              <table className="table table-dark align-middle">
-                <thead>
-                  <tr><th>Product</th><th>SKU</th><th className="text-end">Sold</th><th className="text-end">Returned</th><th className="text-end">Net revenue</th></tr>
-                </thead>
-                <tbody>
-                  {rows.map((p) => (
-                    <tr key={p.id}>
-                      <td>{p.name}</td>
-                      <td>{p.sku}</td>
-                      <td className="text-end">{p.sold}</td>
-                      <td className="text-end">{p.returned > 0 ? <span className="text-danger">{p.returned}</span> : 0}</td>
-                      <td className="text-end">{money(p.net)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="table-responsive d-none d-md-block">
+                <table className="table table-dark align-middle">
+                  <thead>
+                    <tr><th>Product</th><th>SKU</th><th className="text-end">Sold</th><th className="text-end">Returned</th><th className="text-end">Net revenue</th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((p) => (
+                      <tr key={p.id}>
+                        <td>{p.name}</td>
+                        <td>{p.sku}</td>
+                        <td className="text-end">{p.sold}</td>
+                        <td className="text-end">{p.returned > 0 ? <span className="text-danger">{p.returned}</span> : 0}</td>
+                        <td className="text-end">{money(p.net)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="d-md-none">
+                {rows.map((p) => (
+                  <div className="rpt-list-card" key={p.id}>
+                    <div className="rpt-row">
+                      <div><strong>{p.name}</strong><div className="rpt-sub">{p.sku}</div></div>
+                      <div className="rpt-amt">{money(p.net)}</div>
+                    </div>
+                    <div className="rpt-sub mt-2">Sold {p.sold} · Returned {p.returned}</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
-          <h5 className="mt-4 mb-2">Returned products</h5>
+          <div className="rpt-h"><span>Returned products</span><span className="rpt-count">{returnLines.length} items</span></div>
           {returnLines.length === 0 && <p className="text-secondary">No returns in this period.</p>}
           {returnLines.length > 0 && (
-            <div className="table-responsive">
-              <table className="table table-dark align-middle">
-                <thead>
-                  <tr><th>Return</th><th>Date</th><th>Order</th><th>Product</th><th className="text-end">Qty</th><th className="text-end">Price</th><th className="text-end">Refund</th><th>Reason</th></tr>
-                </thead>
-                <tbody>
-                  {returnLines.map((r, i) => (
-                    <tr key={i}>
-                      <td>#{r.id}</td>
-                      <td className="text-nowrap">{r.date ? new Date(r.date).toLocaleDateString("en-IN") : "-"}</td>
-                      <td>#{r.orderId}</td>
-                      <td>{r.name}</td>
-                      <td className="text-end">{r.qty}</td>
-                      <td className="text-end">{money(r.price)}</td>
-                      <td className="text-end">{money(r.refund)}</td>
-                      <td>{r.reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="table-responsive d-none d-md-block">
+                <table className="table table-dark align-middle">
+                  <thead>
+                    <tr><th>Return</th><th>Date</th><th>Order</th><th>Product</th><th className="text-end">Qty</th><th className="text-end">Price</th><th className="text-end">Refund</th><th>Reason</th></tr>
+                  </thead>
+                  <tbody>
+                    {returnLines.map((r, i) => (
+                      <tr key={i}>
+                        <td>#{r.id}</td>
+                        <td className="text-nowrap">{day(r.date)}</td>
+                        <td>#{r.orderId}</td>
+                        <td>{r.name}</td>
+                        <td className="text-end">{r.qty}</td>
+                        <td className="text-end">{money(r.price)}</td>
+                        <td className="text-end">{money(r.refund)}</td>
+                        <td>{r.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="d-md-none">
+                {returnLines.map((r, i) => (
+                  <div className="rpt-list-card" key={i}>
+                    <div className="rpt-row">
+                      <div>
+                        <strong>{r.name}</strong>
+                        <div className="rpt-sub">Return #{r.id} · Order #{r.orderId} · {day(r.date)}</div>
+                      </div>
+                      <div className="rpt-amt">{money(r.refund)}</div>
+                    </div>
+                    <div className="rpt-sub mt-2">{r.qty} × {money(r.price)}{r.reason ? " · " + r.reason : ""}</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
-          <h5 className="mt-4 mb-2">Staff performance</h5>
+          <div className="rpt-h"><span>Staff performance</span><span className="rpt-count">{staff.length} staff</span></div>
           {staff.length === 0 && <p className="text-secondary">No staff activity in this period.</p>}
           {staff.length > 0 && (
-            <div className="table-responsive">
-              <table className="table table-dark align-middle">
-                <thead>
-                  <tr><th>Staff</th><th className="text-end">Orders</th><th className="text-end">Sales</th><th className="text-end">Refunds</th><th className="text-end">Net sales</th><th className="text-end">Cancelled</th></tr>
-                </thead>
-                <tbody>
-                  {staff.map((r) => (
-                    <tr key={r.email}>
-                      <td>{r.name}<div className="text-secondary small">{r.email}</div></td>
-                      <td className="text-end">{r.orders}</td>
-                      <td className="text-end">{money(r.sales)}</td>
-                      <td className="text-end">{money(r.refunds)}</td>
-                      <td className="text-end">{money(r.net)}</td>
-                      <td className="text-end">{r.cancelled}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div className="table-responsive d-none d-md-block">
+                <table className="table table-dark align-middle">
+                  <thead>
+                    <tr><th>Staff</th><th className="text-end">Orders</th><th className="text-end">Sales</th><th className="text-end">Refunds</th><th className="text-end">Net sales</th><th className="text-end">Cancelled</th></tr>
+                  </thead>
+                  <tbody>
+                    {staff.map((r) => (
+                      <tr key={r.email}>
+                        <td>{r.name}<div className="text-secondary small">{r.email}</div></td>
+                        <td className="text-end">{r.orders}</td>
+                        <td className="text-end">{money(r.sales)}</td>
+                        <td className="text-end">{money(r.refunds)}</td>
+                        <td className="text-end">{money(r.net)}</td>
+                        <td className="text-end">{r.cancelled}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="d-md-none">
+                {staff.map((r) => (
+                  <div className="rpt-list-card" key={r.email}>
+                    <div className="rpt-row">
+                      <div><strong>{r.name}</strong><div className="rpt-sub">{r.email}</div></div>
+                      <div className="rpt-amt">{money(r.net)}</div>
+                    </div>
+                    <div className="rpt-sub mt-2">{r.orders} orders · Sales {money(r.sales)} · Refunds {money(r.refunds)} · {r.cancelled} cancelled</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </>
       )}
@@ -279,8 +335,8 @@ function InventoryReport() {
 
   return (
     <>
-      <div className="d-flex justify-content-end mb-3">
-        <button className="btn btn-sm btn-accent" onClick={() => inventoryPdf(data)}>
+      <div className="rpt-card">
+        <button className="btn btn-accent rpt-download" onClick={() => inventoryPdf(data)}>
           Download PDF
         </button>
       </div>
@@ -325,17 +381,15 @@ function InventoryReport() {
 
       <div className="d-md-none">
         {rows.map((p) => (
-          <div className="product-card" key={p.id}>
-            <div className="d-flex justify-content-between">
-              <strong>{p.name}</strong>
+          <div className="rpt-list-card" key={p.id}>
+            <div className="rpt-row">
+              <div><strong>{p.name}</strong><div className="rpt-sub">{p.sku} · {p.categoryName || "No category"}</div></div>
+              <div className="rpt-amt">{money(p.sellingPrice)}</div>
+            </div>
+            <div className="rpt-row mt-2">
+              <span className="rpt-sub">Stock {p.currentStock} (min {p.minimumStock}) · Cost {money(p.purchasePrice)}</span>
               {p.lowStock && <span className="badge bg-danger">Low</span>}
             </div>
-            <div className="text-secondary small">{p.sku} · {p.categoryName || "No category"}</div>
-            <div className="d-flex justify-content-between mt-2">
-              <span>Stock: {p.currentStock} (min {p.minimumStock})</span>
-              <span>{money(p.sellingPrice)}</span>
-            </div>
-            <div className="text-secondary small">Cost {money(p.purchasePrice)}</div>
           </div>
         ))}
       </div>
@@ -348,9 +402,9 @@ export default function Reports() {
   return (
     <div>
       <h2 className="mb-3">Reports</h2>
-      <div className="d-flex gap-2 mb-3">
-        <button className={"btn btn-sm " + (tab === "sales" ? "btn-accent" : "btn-outline-light")} onClick={() => setTab("sales")}>Sales report</button>
-        <button className={"btn btn-sm " + (tab === "inventory" ? "btn-accent" : "btn-outline-light")} onClick={() => setTab("inventory")}>Inventory report</button>
+      <div className="rpt-tabs">
+        <button className={"rpt-tab" + (tab === "sales" ? " active" : "")} onClick={() => setTab("sales")}>Sales report</button>
+        <button className={"rpt-tab" + (tab === "inventory" ? " active" : "")} onClick={() => setTab("inventory")}>Inventory report</button>
       </div>
       {tab === "sales" ? <SalesReport /> : <InventoryReport />}
     </div>

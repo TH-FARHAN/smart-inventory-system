@@ -95,6 +95,10 @@
             android:layout_width="match_parent" android:layout_height="56dp"
             android:layout_marginTop="16dp" android:text="Sign in as Admin" />
 
+        <TextView android:id="@+id/tvForgot" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:gravity="center" android:padding="12dp"
+            android:text="Forgot password?" android:textColor="#FF4D1C" />
+
         <ProgressBar android:id="@+id/progress" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp" android:visibility="gone" />

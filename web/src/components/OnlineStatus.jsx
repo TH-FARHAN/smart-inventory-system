@@ -28,7 +28,7 @@ export default function OnlineStatus() {
   if (online && !showBack) return null;
   return (
     <div className={"net-toast " + (online ? "ok" : "off")} role="status">
-      {online ? "Back online" : "You are offline. Check your internet connection."}
+      {online ? "Back online" : "No internet connection. Please check your network."}
     </div>
   );
 }
