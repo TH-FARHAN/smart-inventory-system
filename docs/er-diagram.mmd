@@ -1,0 +1,137 @@
+﻿erDiagram
+    users {
+        bigint id PK
+        varchar name
+        varchar email UK
+        varchar password
+        varchar role
+        boolean active
+        int failed_attempts
+        timestamp locked_until
+        varchar reset_otp_hash
+        timestamp reset_otp_expires_at
+        timestamp reset_otp_sent_at
+        int reset_otp_attempts
+        text photo
+        timestamp created_at
+    }
+    categories {
+        bigint id PK
+        varchar name UK
+        varchar description
+    }
+    products {
+        bigint id PK
+        varchar name
+        varchar sku UK
+        varchar description
+        bigint category_id FK
+        numeric purchase_price
+        numeric selling_price
+        int current_stock
+        int minimum_stock
+        boolean active
+        timestamp created_at
+        timestamp updated_at
+    }
+    customers {
+        bigint id PK
+        varchar name
+        varchar email
+        varchar phone
+        varchar address
+        timestamp created_at
+    }
+    orders {
+        bigint id PK
+        bigint customer_id FK
+        bigint created_by_id FK
+        varchar status
+        numeric total_amount
+        timestamp created_at
+    }
+    order_items {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        int quantity
+        numeric unit_price
+        numeric subtotal
+    }
+    stock_movements {
+        bigint id PK
+        bigint product_id FK
+        bigint user_id FK
+        varchar movement_type
+        int quantity
+        int previous_stock
+        int updated_stock
+        varchar reason
+        timestamp created_at
+    }
+    sales_returns {
+        bigint id PK
+        bigint order_id FK
+        bigint created_by_id FK
+        varchar reason
+        numeric refund_amount
+        timestamp created_at
+    }
+    return_items {
+        bigint id PK
+        bigint sales_return_id FK
+        bigint product_id FK
+        int quantity
+        numeric unit_price
+        numeric subtotal
+    }
+    suppliers {
+        bigint id PK
+        varchar name
+        varchar email
+        varchar phone
+        varchar address
+        boolean active
+        timestamp created_at
+    }
+    purchase_orders {
+        bigint id PK
+        bigint supplier_id FK
+        bigint created_by_id FK
+        varchar status
+        numeric total_cost
+        timestamp created_at
+        timestamp received_at
+    }
+    purchase_items {
+        bigint id PK
+        bigint purchase_order_id FK
+        bigint product_id FK
+        int quantity
+        numeric unit_cost
+        numeric subtotal
+    }
+    audit_logs {
+        bigint id PK
+        varchar actor
+        varchar action
+        varchar details
+        varchar ip_address
+        timestamp created_at
+    }
+
+    categories ||--o{ products : "has"
+    customers ||--o{ orders : "places"
+    users ||--o{ orders : "creates"
+    orders ||--|{ order_items : "contains"
+    products ||--o{ order_items : "sold in"
+    products ||--o{ stock_movements : "tracked by"
+    users ||--o{ stock_movements : "records"
+    orders ||--o{ sales_returns : "has returns"
+    users ||--o{ sales_returns : "records"
+    sales_returns ||--|{ return_items : "contains"
+    products ||--o{ return_items : "returned as"
+    suppliers ||--o{ purchase_orders : "supplies"
+    users ||--o{ purchase_orders : "creates"
+    purchase_orders ||--|{ purchase_items : "contains"
+    products ||--o{ purchase_items : "bought in"
