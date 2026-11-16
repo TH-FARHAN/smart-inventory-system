@@ -1,4 +1,4 @@
-﻿# BxoStock: Smart Inventory & Order Management System
+# BxoStock: Smart Inventory & Order Management System
 
 A supermarket inventory and order system with a **web app**, an **Android app**, one **REST API** and one **PostgreSQL** database. Built for the Codebxo Full Stack Developer internship assessment.
 
@@ -10,6 +10,7 @@ A supermarket inventory and order system with a **web app**, an **Android app**,
 | Backend API | https://smart-inventory-api-4k6o.onrender.com |
 | API docs (Swagger) | https://smart-inventory-api-4k6o.onrender.com/swagger-ui.html |
 | Android APK | https://github.com/TH-FARHAN/smart-inventory-system/releases/download/v1.0/BxoStock.apk |
+| Demo video | https://drive.google.com/file/d/1qsCp3rTLKA6KDpXA3ZqsKbxcaNlsmREN/view?usp=sharing |
 | Source code | https://github.com/TH-FARHAN/smart-inventory-system |
 | ER diagram | [docs/ER_DIAGRAM.png](docs/ER_DIAGRAM.png) (source: [docs/er-diagram.mmd](docs/er-diagram.mmd)) |
 
@@ -68,6 +69,14 @@ There is **no public sign-up**. Only an admin creates accounts.
 
 ## Project structure
 
+```
+backend/   Spring Boot REST API
+web/       React web app
+android/   Android app (Android Studio project)
+docs/      ER diagram
+postman/   Postman collection
+```
+
 ## Run it locally
 
 ### Backend
@@ -85,11 +94,32 @@ Set these environment variables (or use an `application-local.properties`, which
 | `CORS_ORIGINS` | allowed web origins (default `http://localhost:5173`) |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | optional, for the forgot-password email |
 
+```
+cd backend
+./mvnw spring-boot:run
+```
+
 Tables are created automatically on first start. Swagger: http://localhost:8080/swagger-ui.html
 
 ### Web
 
+```
+cd web
+npm install
+```
+
 Create `web/.env`:
+
+```
+VITE_API_URL=http://localhost:8080/api
+```
+
+Then start it:
+
+```
+npm run dev
+```
+
 
 Open http://localhost:5173
 
@@ -109,10 +139,23 @@ To install the APK, copy it to an Android phone, allow "Install unknown apps", a
 
 Interactive Swagger docs: https://smart-inventory-api-4k6o.onrender.com/swagger-ui.html. A Postman collection is in the `postman` folder.
 
-## Known limitations and future work
+## Known limitations
 
 - Sales totals, charts and reports do not yet subtract refunds from returns (returns are recorded and listed separately).
 - No payment handling, discounts or GST; one shop location only.
 - Dashboard charts and the staff report are calculated in the app from the orders list.
-- Barcode scanning and product expiry dates are planned.
 - Forgot password by email works for admin accounts only; staff ask an admin to reset.
+- The free hosting plan sleeps when idle, so the first request is slow.
+
+## Future enhancements
+
+- **Offline and network handling:** detect Wi-Fi, mobile data or VPN changes, queue orders and stock changes while offline, and sync automatically when the connection returns (the Android app already shows a connection status).
+- **Barcode scanning** with the phone camera (the SKU doubles as the barcode) to add products to an order quickly.
+- **Expiry dates** with "expiring soon" alerts, important for a supermarket.
+- **Net sales after returns** in the dashboard, charts and reports.
+- **Billing upgrades:** discounts, GST, payment method (cash, UPI, card) and receipt printing.
+- **Smart reorder suggestions** based on sales speed, and push notifications for low stock.
+- **Multiple branches or counters** with per-branch stock.
+- **Security upgrades:** refresh tokens, two-factor login, email verification for all roles.
+- **Quality:** automated unit and integration tests, and a CI pipeline (GitHub Actions) that builds and tests on every push.
+- **Server-side reports and pagination** for large data, and CSV/Excel export.
