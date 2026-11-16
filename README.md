@@ -159,3 +159,6 @@ Interactive Swagger docs: https://smart-inventory-api-4k6o.onrender.com/swagger-
 - **Security upgrades:** refresh tokens, two-factor login, email verification for all roles.
 - **Quality:** automated unit and integration tests, and a CI pipeline (GitHub Actions) that builds and tests on every push.
 - **Server-side reports and pagination** for large data, and CSV/Excel export.
+## Project report
+See [docs/PROJECT_REPORT.pdf](docs/PROJECT_REPORT.pdf) for the architecture, database design, security, business rules and setup steps.
+
