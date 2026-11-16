@@ -68,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.dCustomers).setOnClickListener(v -> go(new CustomersFragment()));
         findViewById(R.id.dProducts).setOnClickListener(v -> go(new ProductsFragment()));
         findViewById(R.id.dStock).setOnClickListener(v -> go(new StockFragment()));
+        findViewById(R.id.dStockHistory).setOnClickListener(v -> go(new StockHistoryFragment()));
 
         setupGroup(R.id.gSales, R.id.bSales, R.id.aSales);
         setupGroup(R.id.gInventory, R.id.bInventory, R.id.aInventory);
@@ -188,6 +189,7 @@ public class MainActivity extends AppCompatActivity {
     private String titleFor(Fragment f) {
         if (f instanceof ProductsFragment) return "Products";
         if (f instanceof StockFragment) return "Stock in / out";
+        if (f instanceof StockHistoryFragment) return "Stock history";
         if (f instanceof CustomersFragment) return "Customers";
         if (f instanceof OrdersFragment) return "Orders";
         if (f instanceof UsersFragment) return "Users";

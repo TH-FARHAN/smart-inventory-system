@@ -107,6 +107,9 @@ public interface ApiService {
     @PATCH("admin/users/{id}/reset-password")
     Call<ResponseBody> resetPassword(@Path("id") long id, @Body ResetPasswordRequest body);
 
+    @GET("inventory/movements")
+    Call<java.util.List<com.bxostock.app.model.Movement>> movements(@Query("productId") Long productId);
+
     // ----- returns, suppliers, purchases -----
     @GET("returns")
     Call<java.util.List<com.bxostock.app.model.ReturnResponse>> returnsList();
