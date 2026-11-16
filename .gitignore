@@ -30,3 +30,12 @@ collect*.txt
 *.log
 
 *.bak*
+
+*.apk
+*.zip
+_backup_*/
+apply-*.ps1
+build/
+.gradle/
+.idea/
+local.properties
