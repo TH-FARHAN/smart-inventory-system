@@ -21,6 +21,7 @@ import com.bxostock.app.model.Product;
 import com.bxostock.app.model.ReturnLine;
 import com.bxostock.app.model.ReturnResponse;
 import com.bxostock.app.util.ApiError;
+import com.bxostock.app.util.BxoToast;
 import com.bxostock.app.util.Fmt;
 import com.bxostock.app.util.Session;
 import com.bxostock.app.util.TokenStore;
@@ -251,7 +252,7 @@ public class DashboardFragment extends Fragment {
             f.setArguments(b);
         }
         openScreen(f);
-        if (message != null) Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+        if (message != null) BxoToast.show(requireActivity().findViewById(android.R.id.content), message);
     }
 
     private void openLowStock() {
@@ -260,7 +261,7 @@ public class DashboardFragment extends Fragment {
         b.putBoolean("low", true);
         f.setArguments(b);
         openScreen(f);
-        Toast.makeText(requireContext(), "Showing low stock products", Toast.LENGTH_SHORT).show();
+        BxoToast.show(requireActivity().findViewById(android.R.id.content), "Showing low stock products");
     }
 
     private void addRow(LinearLayout parent, Row row, final Runnable click) {

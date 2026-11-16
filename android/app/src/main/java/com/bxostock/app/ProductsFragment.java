@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.view.View;
 import android.widget.AutoCompleteTextView;
 import android.widget.EditText;
@@ -70,7 +72,7 @@ public class ProductsFragment extends BaseListFragment<Product> {
 
     @Override
     protected void onItemClick(final Product p) {
-        MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(requireContext())
+        MaterialAlertDialogBuilder b = new BxoDialog(requireContext())
                 .setTitle(p.name)
                 .setMessage("SKU: " + p.sku
                         + "\nCategory: " + (p.categoryName == null ? "-" : p.categoryName)
@@ -88,7 +90,7 @@ public class ProductsFragment extends BaseListFragment<Product> {
     }
 
     private void confirmDelete(final Product p) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle("Delete product")
                 .setMessage("Delete \"" + p.name + "\"? It will no longer appear in the product list.")
                 .setNegativeButton("Cancel", null)
@@ -175,7 +177,7 @@ public class ProductsFragment extends BaseListFragment<Product> {
             opening.setText("0");
         }
 
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle(existing == null ? "Add product" : "Edit product")
                 .setView(v)
                 .setPositiveButton("Save", null)

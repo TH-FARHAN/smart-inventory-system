@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.os.Bundle;
 import android.view.View;
 import android.widget.EditText;
@@ -168,7 +170,7 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
 
     @Override
     protected void onItemClick(final UserResponse u) {
-        MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(requireContext())
+        MaterialAlertDialogBuilder b = new BxoDialog(requireContext())
                 .setTitle(u.name)
                 .setMessage("Email: " + u.email + "\nRole: " + u.role
                         + "\nStatus: " + (u.active ? "Active" : "Inactive")
@@ -193,7 +195,7 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
         android.widget.FrameLayout box = new android.widget.FrameLayout(requireContext());
         box.setPadding(pad, pad / 2, pad, 0);
         box.addView(e);
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle("Reset password for " + u.name)
                 .setView(box)
                 .setPositiveButton("Reset", null)
@@ -227,7 +229,7 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
     }
 
     private void confirmDeactivate(final UserResponse u) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle("Deactivate user")
                 .setMessage("Deactivate " + u.name + "? They will be blocked from signing in right away.")
                 .setNegativeButton("Cancel", null)
@@ -265,7 +267,7 @@ public class UsersFragment extends BaseListFragment<UserResponse> {
         final EditText e = v.findViewById(R.id.uEmail);
         final EditText p = v.findViewById(R.id.uPassword);
         final RadioGroup rg = v.findViewById(R.id.uRole);
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle("Add user")
                 .setView(v)
                 .setPositiveButton("Create user", null)

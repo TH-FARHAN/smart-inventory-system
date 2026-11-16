@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -43,7 +45,7 @@ public class CustomersFragment extends BaseListFragment<Customer> {
 
     @Override
     protected void onItemClick(final Customer c) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle(c.name)
                 .setMessage("Phone: " + dash(c.phone) + "\nEmail: " + dash(c.email)
                         + "\nAddress: " + dash(c.address))
@@ -71,7 +73,7 @@ public class CustomersFragment extends BaseListFragment<Customer> {
             e.setText(existing.email);
             a.setText(existing.address);
         }
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle(existing == null ? "Add customer" : "Edit customer")
                 .setView(v)
                 .setPositiveButton("Save", null)

@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.widget.Toast;
 
 import com.bxostock.app.api.ApiClient;
@@ -60,7 +62,7 @@ public class AuditLogsFragment extends BaseListFragment<AuditLog> {
 
     @Override
     protected void onItemClick(AuditLog l) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle(nz(l.action))
                 .setMessage("User: " + nz(l.actor)
                         + "\nTime: " + Fmt.date(l.createdAt)

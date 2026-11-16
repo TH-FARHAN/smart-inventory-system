@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import com.bxostock.app.api.ApiClient;
 import com.bxostock.app.model.ReturnLine;
 import com.bxostock.app.model.ReturnResponse;
@@ -52,7 +54,7 @@ public class ReturnsFragment extends BaseListFragment<ReturnResponse> {
             }
         }
         sb.append("\nRefund: ").append(Fmt.money(r.refundAmount));
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle("Return #" + r.id)
                 .setMessage(sb.toString())
                 .setPositiveButton("Close", null)

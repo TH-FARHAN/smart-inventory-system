@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -48,7 +50,7 @@ public class CategoriesFragment extends BaseListFragment<Category> {
         View v = getLayoutInflater().inflate(R.layout.dialog_category, null);
         final EditText n = v.findViewById(R.id.cName);
         final EditText ds = v.findViewById(R.id.cDesc);
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle("Add category")
                 .setView(v)
                 .setPositiveButton("Create", null)

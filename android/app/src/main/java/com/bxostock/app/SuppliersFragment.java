@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -48,7 +50,7 @@ public class SuppliersFragment extends BaseListFragment<Supplier> {
 
     @Override
     protected void onItemClick(final Supplier s) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle(s.name)
                 .setMessage("Phone: " + dash(s.phone) + "\nEmail: " + dash(s.email) + "\nAddress: " + dash(s.address))
                 .setPositiveButton("Close", null)
@@ -75,7 +77,7 @@ public class SuppliersFragment extends BaseListFragment<Supplier> {
             e.setText(existing.email);
             a.setText(existing.address);
         }
-        final AlertDialog d = new MaterialAlertDialogBuilder(requireContext())
+        final AlertDialog d = new BxoDialog(requireContext())
                 .setTitle(existing == null ? "Add supplier" : "Edit supplier")
                 .setView(v)
                 .setPositiveButton("Save", null)

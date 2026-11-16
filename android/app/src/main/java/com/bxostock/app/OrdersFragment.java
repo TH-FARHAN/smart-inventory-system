@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.app.Activity;
 import android.content.Intent;
 import android.widget.Toast;
@@ -101,7 +103,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
             }
         }
         sb.append("\nTotal: ").append(Fmt.money(o.totalAmount));
-        MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(requireContext())
+        MaterialAlertDialogBuilder b = new BxoDialog(requireContext())
                 .setTitle("Order #" + o.id)
                 .setMessage(sb.toString())
                 .setPositiveButton("Close", null);
@@ -115,7 +117,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
     private void showMore(final OrderResponse o) {
         final boolean canReturn = "CONFIRMED".equals(o.status);
         String[] items = canReturn ? new String[]{"Bill PDF", "Return items"} : new String[]{"Bill PDF"};
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle("Order #" + o.id)
                 .setItems(items, (d, which) -> {
                     if (which == 0) exportBill(o);
@@ -146,7 +148,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
     }
 
     private void confirmCancel(final OrderResponse o) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle("Cancel order #" + o.id + "?")
                 .setMessage("The stock will be put back.")
                 .setNegativeButton("Keep order", null)

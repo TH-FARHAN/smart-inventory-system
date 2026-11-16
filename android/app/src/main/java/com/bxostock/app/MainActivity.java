@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -220,7 +222,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void confirmLogout() {
-        new MaterialAlertDialogBuilder(this)
+        new BxoDialog(this)
                 .setTitle("Log out?")
                 .setMessage("You will need to sign in again.")
                 .setNegativeButton("Cancel", null)

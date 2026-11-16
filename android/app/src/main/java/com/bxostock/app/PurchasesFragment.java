@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.content.Intent;
 import android.widget.Toast;
 
@@ -65,7 +67,7 @@ public class PurchasesFragment extends BaseListFragment<PurchaseResponse> {
             }
         }
         sb.append("\nTotal cost: ").append(Fmt.money(p.totalCost));
-        MaterialAlertDialogBuilder b = new MaterialAlertDialogBuilder(requireContext())
+        MaterialAlertDialogBuilder b = new BxoDialog(requireContext())
                 .setTitle("Purchase #" + p.id)
                 .setMessage(sb.toString())
                 .setNeutralButton("Close", null);
@@ -77,7 +79,7 @@ public class PurchasesFragment extends BaseListFragment<PurchaseResponse> {
     }
 
     private void confirm(final PurchaseResponse p, final boolean receive) {
-        new MaterialAlertDialogBuilder(requireContext())
+        new BxoDialog(requireContext())
                 .setTitle(receive ? "Receive stock?" : "Cancel purchase #" + p.id + "?")
                 .setMessage(receive ? "The stock of every item will increase." : "This cannot be undone.")
                 .setNegativeButton("Back", null)

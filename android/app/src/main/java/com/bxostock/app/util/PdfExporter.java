@@ -1,5 +1,7 @@
 package com.bxostock.app.util;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ContentValues;
@@ -12,6 +14,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.widget.Toast;
+import com.bxostock.app.R;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.content.FileProvider;
@@ -114,10 +117,14 @@ public class PdfExporter {
             y += 20;
         }
 
-        void build(Table t) {
+        void build(Activity a, Table t) {
             newPage();
             y = M + 18;
-            text("BxoStock", M, 22, 0xFFFF4D1C, true);
+            try {
+                android.graphics.Bitmap bm = android.graphics.BitmapFactory.decodeResource(a.getResources(), R.drawable.logo_icon);
+                if (bm != null) c.drawBitmap(bm, null, new android.graphics.RectF(M, y - 22, M + 30, y + 8), p);
+            } catch (Exception ignored) { }
+            text("BxoStock", M + 38, 22, 0xFFFF4D1C, true);
             y += 24;
             text(t.title, M, 15, 0xFF222222, true);
             y += 16;
@@ -155,7 +162,7 @@ public class PdfExporter {
             dir.mkdirs();
             File file = new File(dir, fileName);
             Writer w = new Writer();
-            w.build(t);
+            w.build(a, t);
             FileOutputStream out = new FileOutputStream(file);
             w.doc.writeTo(out);
             out.close();
@@ -164,7 +171,7 @@ public class PdfExporter {
             boolean saved = false;
             if (Build.VERSION.SDK_INT >= 29) saved = copyToDownloads(a, file, fileName);
             final Uri uri = FileProvider.getUriForFile(a, a.getPackageName() + ".fileprovider", file);
-            new MaterialAlertDialogBuilder(a)
+            new BxoDialog(a)
                     .setTitle("PDF ready")
                     .setMessage(saved ? "Saved in your Downloads folder as\n" + fileName
                             : "The PDF was created. Tap Share to save or send it.")

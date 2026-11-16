@@ -1,5 +1,7 @@
 package com.bxostock.app;
 
+import com.bxostock.app.util.BxoDialog;
+
 import android.app.Activity;
 import android.text.InputType;
 import android.view.View;
@@ -87,7 +89,7 @@ public class ReturnDialog {
         ScrollView sv = new ScrollView(a);
         sv.addView(box);
 
-        final AlertDialog dlg = new MaterialAlertDialogBuilder(a)
+        final AlertDialog dlg = new BxoDialog(a)
                 .setTitle("Return items \u00B7 Order #" + o.id)
                 .setView(sv)
                 .setPositiveButton("Confirm return", null)
