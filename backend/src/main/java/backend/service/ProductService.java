@@ -17,6 +17,7 @@ import java.util.List;
 public class ProductService {
     private final ProductRepository products;
     private final CategoryRepository categories;
+    private final SupplierRepository suppliers;
     private final StockMovementRepository movements;
     private final UserRepository users;
 
@@ -72,6 +73,9 @@ public class ProductService {
         p.setPurchasePrice(r.purchasePrice());
         p.setSellingPrice(r.sellingPrice());
         p.setMinimumStock(r.minimumStock());
+        p.setSupplier(r.supplierId() == null ? null : suppliers.findById(r.supplierId())
+                .filter(Supplier::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Supplier not found")));
         p.setCategory(r.categoryId() == null ? null : categories.findById(r.categoryId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found")));
     }

@@ -43,6 +43,7 @@ public class NewPurchaseActivity extends AppCompatActivity {
     private LinearLayout cartBox;
     private View btnPlace;
     private final List<Line> cart = new ArrayList<>();
+    private final List<Product> allProducts = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,7 +62,12 @@ public class NewPurchaseActivity extends AppCompatActivity {
         cartBox = findViewById(R.id.cartBox);
         btnPlace = findViewById(R.id.btnPlace);
 
-        supplierPicker = new Picker<Supplier>((AutoCompleteTextView) findViewById(R.id.acSupplier), null);
+        supplierPicker = new Picker<Supplier>((AutoCompleteTextView) findViewById(R.id.acSupplier), s -> {
+            cart.clear();
+            render();
+            productPicker.clear();
+            showSupplierProducts(s);
+        });
         productPicker = new Picker<>((AutoCompleteTextView) findViewById(R.id.acProduct),
                 p -> etCost.setText(String.valueOf(p.purchasePrice)));
         findViewById(R.id.btnAdd).setOnClickListener(v -> addLine());
@@ -83,9 +89,9 @@ public class NewPurchaseActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<List<Product>> c, Response<List<Product>> r) {
                 if (!r.isSuccessful() || r.body() == null) { fail(r); return; }
-                List<Product> active = new ArrayList<>();
-                for (Product p : r.body()) if (p.active) active.add(p);
-                productPicker.set(active, p -> p.sku + " \u00B7 " + p.name + " \u00B7 stock " + p.currentStock);
+                allProducts.clear();
+                for (Product p : r.body()) if (p.active) allProducts.add(p);
+                productPicker.set(new ArrayList<Product>(), p -> p.name);
             }
 
             @Override
@@ -93,8 +99,18 @@ public class NewPurchaseActivity extends AppCompatActivity {
         });
     }
 
+    // only the chosen supplier's products can be ordered
+    private void showSupplierProducts(Supplier s) {
+        List<Product> mine = new ArrayList<>();
+        for (Product p : allProducts) if (p.supplierId != null && p.supplierId == s.id) mine.add(p);
+        productPicker.set(mine, p -> p.sku + " \u00B7 " + p.name + " \u00B7 stock " + p.currentStock);
+        if (mine.isEmpty()) err("No products are linked to " + s.name + ". Edit a product and choose this supplier.");
+        else tvMessage.setVisibility(View.GONE);
+    }
+
     private void addLine() {
         tvMessage.setVisibility(View.GONE);
+        if (supplierPicker.selected() == null) { err("Choose a supplier first."); return; }
         Product p = productPicker.selected();
         if (p == null) { err("Choose a product from the list."); return; }
         int qty;

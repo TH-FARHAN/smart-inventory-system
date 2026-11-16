@@ -7,6 +7,8 @@ public class Product {
     public String description;
     public Long categoryId;
     public String categoryName;
+    public Long supplierId;
+    public String supplierName;
     public double purchasePrice;
     public double sellingPrice;
     public int currentStock;

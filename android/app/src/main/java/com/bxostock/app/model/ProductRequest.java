@@ -5,6 +5,7 @@ public class ProductRequest {
     public String sku;
     public String description;
     public Long categoryId;
+    public Long supplierId;
     public double purchasePrice;
     public double sellingPrice;
     public int minimumStock;

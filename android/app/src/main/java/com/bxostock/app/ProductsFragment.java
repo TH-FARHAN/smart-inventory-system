@@ -14,6 +14,7 @@ import com.bxostock.app.api.ApiService;
 import com.bxostock.app.model.Category;
 import com.bxostock.app.model.Product;
 import com.bxostock.app.model.ProductRequest;
+import com.bxostock.app.model.Supplier;
 import com.bxostock.app.util.ApiError;
 import com.bxostock.app.util.Fmt;
 import com.bxostock.app.util.Picker;
@@ -76,6 +77,7 @@ public class ProductsFragment extends BaseListFragment<Product> {
                 .setTitle(p.name)
                 .setMessage("SKU: " + p.sku
                         + "\nCategory: " + (p.categoryName == null ? "-" : p.categoryName)
+                        + "\nSupplier: " + (p.supplierName == null ? "-" : p.supplierName)
                         + "\nPurchase price: " + Fmt.money(p.purchasePrice)
                         + "\nSelling price: " + Fmt.money(p.sellingPrice)
                         + "\nIn stock: " + p.currentStock
@@ -115,18 +117,33 @@ public class ProductsFragment extends BaseListFragment<Product> {
                 .show();
     }
 
-    // load the categories first, then show the form
+    // load the categories and suppliers first, then show the form
     private void openForm(final Product existing) {
         ApiClient.get(requireContext()).categories().enqueue(new Callback<List<Category>>() {
             @Override
             public void onResponse(Call<List<Category>> c, Response<List<Category>> r) {
                 if (!isAdded()) return;
-                showForm(existing, r.isSuccessful() && r.body() != null ? r.body() : new ArrayList<Category>());
+                loadSuppliers(existing, r.isSuccessful() && r.body() != null ? r.body() : new ArrayList<Category>());
             }
 
             @Override
             public void onFailure(Call<List<Category>> c, Throwable t) {
-                if (isAdded()) showForm(existing, new ArrayList<Category>());
+                if (isAdded()) loadSuppliers(existing, new ArrayList<Category>());
+            }
+        });
+    }
+
+    private void loadSuppliers(final Product existing, final List<Category> cats) {
+        ApiClient.get(requireContext()).suppliers().enqueue(new Callback<List<Supplier>>() {
+            @Override
+            public void onResponse(Call<List<Supplier>> c, Response<List<Supplier>> r) {
+                if (!isAdded()) return;
+                showForm(existing, cats, r.isSuccessful() && r.body() != null ? r.body() : new ArrayList<Supplier>());
+            }
+
+            @Override
+            public void onFailure(Call<List<Supplier>> c, Throwable t) {
+                if (isAdded()) showForm(existing, cats, new ArrayList<Supplier>());
             }
         });
     }
@@ -149,11 +166,12 @@ public class ProductsFragment extends BaseListFragment<Product> {
         }
     }
 
-    private void showForm(final Product existing, List<Category> cats) {
+    private void showForm(final Product existing, List<Category> cats, List<Supplier> sups) {
         View v = getLayoutInflater().inflate(R.layout.dialog_product, null);
         final EditText name = v.findViewById(R.id.dName);
         final EditText sku = v.findViewById(R.id.dSku);
         final AutoCompleteTextView acCat = v.findViewById(R.id.dCategory);
+        final AutoCompleteTextView acSup = v.findViewById(R.id.dSupplier);
         final EditText desc = v.findViewById(R.id.dDescription);
         final EditText purchase = v.findViewById(R.id.dPurchase);
         final EditText selling = v.findViewById(R.id.dSelling);
@@ -162,11 +180,14 @@ public class ProductsFragment extends BaseListFragment<Product> {
 
         final Picker<Category> picker = new Picker<Category>(acCat, null);
         picker.set(cats, c -> c.name);
+        final Picker<Supplier> supPicker = new Picker<Supplier>(acSup, null);
+        supPicker.set(sups, s -> s.name);
 
         if (existing != null) {
             name.setText(existing.name);
             sku.setText(existing.sku);
             if (existing.categoryName != null) acCat.setText(existing.categoryName, false);
+            if (existing.supplierName != null) acSup.setText(existing.supplierName, false);
             desc.setText(existing.description);
             purchase.setText(String.valueOf(existing.purchasePrice));
             selling.setText(String.valueOf(existing.sellingPrice));
@@ -196,7 +217,13 @@ public class ProductsFragment extends BaseListFragment<Product> {
                 acCat.setError("Pick a category from the list, or clear it");
                 return;
             }
+            Supplier sup = supPicker.selected();
+            if (!text(acSup).isEmpty() && sup == null) {
+                acSup.setError("Pick a supplier from the list, or clear it");
+                return;
+            }
             ProductRequest req = new ProductRequest();
+            req.supplierId = sup == null ? null : sup.id;
             req.name = text(name);
             req.sku = text(sku);
             req.description = text(desc);

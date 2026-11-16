@@ -74,6 +74,9 @@ public class PurchaseService {
             Product p = products.findById(i.productId()).filter(Product::isActive)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             "Product not found: " + i.productId()));
+            if (p.getSupplier() == null || !p.getSupplier().getId().equals(s.getId()))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        p.getName() + " is not supplied by " + s.getName());
             BigDecimal sub = i.unitCost().multiply(BigDecimal.valueOf(i.quantity()));
             PurchaseItem pi = new PurchaseItem();
             pi.setPurchaseOrder(po);

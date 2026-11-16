@@ -8,6 +8,7 @@ public record ProductRequest(
         @NotBlank String sku,
         String description,
         Long categoryId,
+        Long supplierId,
         @NotNull @DecimalMin("0.0") BigDecimal purchasePrice,
         @NotNull @DecimalMin("0.0") BigDecimal sellingPrice,
         @Min(0) int minimumStock,

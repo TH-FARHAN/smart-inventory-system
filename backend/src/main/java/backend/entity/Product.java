@@ -20,6 +20,8 @@ public class Product {
     private String description;
     @ManyToOne
     private Category category;
+    @ManyToOne
+    private Supplier supplier;
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal purchasePrice;
     @Column(nullable = false, precision = 12, scale = 2)

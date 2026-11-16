@@ -105,6 +105,11 @@ export default function Suppliers() {
     setRow(i, { productId: id, cost: rows[i].cost === "" && p ? String(p.purchasePrice) : rows[i].cost });
   }
 
+  // only the chosen supplier's products can be ordered
+  const supplierProducts = products.filter((p) => supplierId !== "" && String(p.supplierId) === String(supplierId));
+
+  function pickSupplier(id) { setSupplierId(id); setRows([emptyRow]); }
+
   const total = rows.reduce((s, r) => s + Number(r.quantity || 0) * Number(r.cost || 0), 0);
 
   async function createPo(e) {
@@ -234,14 +239,16 @@ export default function Suppliers() {
                   {formError && <div className="alert alert-danger py-2">{formError}</div>}
                   <label className="form-label">Supplier</label>
                   <div className="mb-3">
-                    <SearchSelect placeholder="Type to find a supplier" value={supplierId} onChange={setSupplierId} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+                    <SearchSelect placeholder="Type to find a supplier" value={supplierId} onChange={pickSupplier} options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
                   </div>
                   <label className="form-label">Products (quantity and unit cost)</label>
+                  {supplierId === "" && <p className="text-secondary small">Select a supplier first. Only that supplier's products will be listed.</p>}
+                  {supplierId !== "" && supplierProducts.length === 0 && <div className="alert alert-warning py-2">No products are linked to this supplier yet. Open Products, edit a product and choose this supplier.</div>}
                   {rows.map((r, i) => (
                     <div className="d-flex flex-wrap gap-2 mb-2" key={i}>
                       <div className="flex-grow-1" style={{ flexBasis: 220 }}>
-                        <SearchSelect placeholder="Type to find a product" value={r.productId} onChange={(v) => pickProduct(i, v)}
-                          options={products.map((p) => ({ value: p.id, label: `${p.name} (${p.sku}) · stock ${p.currentStock}`, disabled: rows.some((x, idx) => idx !== i && String(x.productId) === String(p.id)) }))} />
+                        <SearchSelect placeholder={supplierId === "" ? "Select a supplier first" : "Type to find a product"} value={r.productId} onChange={(v) => pickProduct(i, v)}
+                          options={supplierProducts.map((p) => ({ value: p.id, label: `${p.name} (${p.sku}) · stock ${p.currentStock}`, disabled: rows.some((x, idx) => idx !== i && String(x.productId) === String(p.id)) }))} />
                       </div>
                       <input type="number" min="1" className="form-control" style={{ width: 80 }} placeholder="Qty" value={r.quantity} onChange={(e) => setRow(i, { quantity: e.target.value })} />
                       <input type="number" min="0" step="0.01" className="form-control" style={{ width: 110 }} placeholder="Unit cost" value={r.cost} onChange={(e) => setRow(i, { cost: e.target.value })} />

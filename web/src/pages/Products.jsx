@@ -4,7 +4,7 @@ import useDebounce from "../useDebounce";
 import { useConfirm } from "../confirmContext";
 
 const emptyForm = {
-  name: "", sku: "", description: "", categoryId: "",
+  name: "", sku: "", description: "", categoryId: "", supplierId: "",
   purchasePrice: "", sellingPrice: "", minimumStock: "0", openingStock: "0",
 };
 
@@ -24,6 +24,7 @@ export default function Products() {
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [keyword, setKeyword] = useState("");
   const debounced = useDebounce(keyword.trim(), 300);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function Products() {
 
   useEffect(() => {
     api.get("/categories").then((r) => setCategories(r.data)).catch(() => {});
+    api.get("/suppliers").then((r) => setSuppliers(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -75,6 +77,7 @@ export default function Products() {
       sku: p.sku,
       description: p.description || "",
       categoryId: p.categoryId ?? "",
+      supplierId: p.supplierId ?? "",
       purchasePrice: p.purchasePrice,
       sellingPrice: p.sellingPrice,
       minimumStock: p.minimumStock,
@@ -97,6 +100,7 @@ export default function Products() {
       sku: form.sku.trim(),
       description: form.description.trim(),
       categoryId: form.categoryId === "" ? null : Number(form.categoryId),
+      supplierId: form.supplierId === "" ? null : Number(form.supplierId),
       purchasePrice: Number(form.purchasePrice),
       sellingPrice: Number(form.sellingPrice),
       minimumStock: Number(form.minimumStock || 0),
@@ -239,6 +243,14 @@ export default function Products() {
                     <option value="">No category</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  <label className="form-label">Supplier</label>
+                  <select className="form-select form-control mb-3" name="supplierId" value={form.supplierId} onChange={change}>
+                    <option value="">No supplier</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
 
