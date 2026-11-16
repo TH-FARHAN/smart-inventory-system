@@ -40,6 +40,8 @@ public class PdfExporter {
         public float[] weights;
         public boolean[] right;
         public List<String[]> rows = new ArrayList<>();
+        /** extra tables drawn under the main one; each uses its own title, headers, weights, right and rows */
+        public List<Table> extra = new ArrayList<>();
     }
 
     private static final int PW = 595, PH = 842, M = 36;
@@ -117,6 +119,22 @@ public class PdfExporter {
             y += 20;
         }
 
+        /** header row plus data rows, starting a new page when needed */
+        void table(Table t) {
+            header(t);
+            for (String[] row : t.rows) {
+                if (y + 20 > PH - M) {
+                    newPage();
+                    y = M + 12;
+                    header(t);
+                }
+                cells(t, row, 0xFF222222, false);
+                p.setColor(0xFFDDDDDD);
+                c.drawLine(M, y + 6, PW - M, y + 6, p);
+                y += 20;
+            }
+        }
+
         void build(Activity a, Table t) {
             newPage();
             y = M + 18;
@@ -139,17 +157,17 @@ public class PdfExporter {
                 y += 16;
             }
             y += 8;
-            header(t);
-            for (String[] row : t.rows) {
-                if (y + 20 > PH - M) {
+            table(t);
+            for (Table x : t.extra) {
+                if (y + 70 > PH - M) {
                     newPage();
                     y = M + 12;
-                    header(t);
+                } else {
+                    y += 14;
                 }
-                cells(t, row, 0xFF222222, false);
-                p.setColor(0xFFDDDDDD);
-                c.drawLine(M, y + 6, PW - M, y + 6, p);
-                y += 20;
+                text(x.title, M, 13, 0xFF222222, true);
+                y += 18;
+                table(x);
             }
             footer();
             doc.finishPage(page);

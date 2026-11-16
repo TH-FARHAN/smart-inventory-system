@@ -1,63 +1,104 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
-    <LinearLayout
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingStart="12dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="12dp"
+        android:scrollbars="none">
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipStock"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            app:selectionRequired="true" app:singleLine="true" app:singleSelection="true">
+            <com.google.android.material.chip.Chip android:id="@+id/chipIn"
+                style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checkable="true"
+                android:checked="true" android:text="Stock In" />
+            <com.google.android.material.chip.Chip android:id="@+id/chipOut"
+                style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checkable="true" android:text="Stock Out" />
+            <com.google.android.material.chip.Chip android:id="@+id/chipLow"
+                style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checkable="true" android:text="Low stock" />
+            <com.google.android.material.chip.Chip android:id="@+id/chipHistory"
+                style="@style/Widget.Material3.Chip.Filter" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:checkable="true" android:text="History" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Receive new stock, or remove damaged or expired items."
-            android:textColor="?attr/colorOnSurfaceVariant" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="16dp" android:hint="Product (type to search)">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/acProduct" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:inputType="text" />
-        </com.google.android.material.textfield.TextInputLayout>
+        <!-- Stock In / Stock Out form -->
+        <ScrollView
+            android:id="@+id/moveForm"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-        <TextView android:id="@+id/tvInfo" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:layout_marginTop="6dp"
-            android:textColor="?attr/colorPrimary" android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" android:hint="Quantity">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etQty" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:inputType="number" android:maxLength="6" />
-        </com.google.android.material.textfield.TextInputLayout>
+                <TextView android:id="@+id/tvIntro" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Receive new stock into the store."
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" android:hint="Reason (optional)">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etReason" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:inputType="text" android:maxLength="200" />
-        </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp" android:hint="Product (type to search)">
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/acProduct" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:inputType="text" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="16dp" android:orientation="horizontal">
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnIn"
-                android:layout_width="0dp" android:layout_height="56dp" android:layout_marginEnd="6dp"
-                android:layout_weight="1" android:text="Stock in" />
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnOut"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp" android:layout_height="56dp" android:layout_marginStart="6dp"
-                android:layout_weight="1" android:text="Stock out" />
-        </LinearLayout>
+                <TextView android:id="@+id/tvInfo" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:layout_marginTop="6dp"
+                    android:textColor="?attr/colorPrimary" android:textStyle="bold" />
 
-        <TextView android:id="@+id/tvMessage" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginTop="12dp"
-            android:textColor="#FF6B6B" android:visibility="gone" />
-    </LinearLayout>
-</ScrollView>
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:hint="Quantity">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etQty" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:inputType="number" android:maxLength="6" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:hint="Reason (optional)">
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/etReason" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:inputType="text" android:maxLength="200" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.button.MaterialButton android:id="@+id/btnIn"
+                    android:layout_width="match_parent" android:layout_height="56dp"
+                    android:layout_marginTop="16dp" android:text="Stock in" />
+
+                <TextView android:id="@+id/tvMessage" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginTop="12dp"
+                    android:textColor="#FF6B6B" android:visibility="gone" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- Low stock and History lists are shown here -->
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/subContainer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

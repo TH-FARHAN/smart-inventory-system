@@ -3,6 +3,10 @@ package com.bxostock.app;
 import com.bxostock.app.util.BxoDialog;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import android.widget.ImageView;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.os.Bundle;
@@ -19,6 +23,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.bxostock.app.api.ApiClient;
+import com.bxostock.app.model.PhotoResponse;
 import com.bxostock.app.util.Session;
 import com.bxostock.app.util.TokenStore;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -51,10 +56,18 @@ public class MainActivity extends AppCompatActivity {
 
         String name = TokenStore.name(this);
         String role = TokenStore.role(this);
-        ((TextView) findViewById(R.id.tvUser)).setText(name);
-        ((TextView) findViewById(R.id.tvRole)).setText(role);
         ((TextView) findViewById(R.id.tvDrawerUser)).setText(name);
-        ((TextView) findViewById(R.id.tvDrawerRole)).setText(role);
+        String initial = name == null ? "" : name.trim();
+        ((TextView) findViewById(R.id.tvDrawerInitial)).setText(initial.isEmpty() ? "?" : initial.substring(0, 1).toUpperCase());
+        // name + profile photo sit above the Log out button; tapping them opens the profile
+        findViewById(R.id.dMe).setOnClickListener(v -> go(new ProfileFragment()));
+        loadAvatar();
+        drawer.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override
+            public void onDrawerOpened(View drawerView) {
+                loadAvatar();
+            }
+        });
 
         findViewById(R.id.btnMenu).setOnClickListener(v -> drawer.openDrawer(GravityCompat.START));
         findViewById(R.id.btnLogout).setOnClickListener(v -> {
@@ -113,6 +126,38 @@ public class MainActivity extends AppCompatActivity {
         });
         if (savedInstanceState == null) nav.setSelectedItemId(R.id.nav_home);
         watchNetwork();
+    }
+
+    /** Show the user's profile photo next to their name (falls back to the first letter). */
+    private void loadAvatar() {
+        ApiClient.get(this).getPhoto().enqueue(new Callback<PhotoResponse>() {
+            @Override
+            public void onResponse(Call<PhotoResponse> c, Response<PhotoResponse> r) {
+                if (isFinishing() || !r.isSuccessful() || r.body() == null) return;
+                String photo = r.body().photo;
+                ImageView iv = findViewById(R.id.ivDrawerAvatar);
+                TextView tv = findViewById(R.id.tvDrawerInitial);
+                Bitmap bm = null;
+                if (photo != null && !photo.isEmpty()) {
+                    try {
+                        String b64 = photo.contains(",") ? photo.substring(photo.indexOf(',') + 1) : photo;
+                        byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                        bm = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    } catch (Exception ignored) { }
+                }
+                if (bm != null) {
+                    iv.setImageBitmap(bm);
+                    iv.setVisibility(View.VISIBLE);
+                    tv.setVisibility(View.GONE);
+                } else {
+                    iv.setVisibility(View.GONE);
+                    tv.setVisibility(View.VISIBLE);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<PhotoResponse> c, Throwable t) { }
+        });
     }
 
     /** Tap the header to open or close a group; the arrow turns. */

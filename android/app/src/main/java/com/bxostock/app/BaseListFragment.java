@@ -21,6 +21,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.bxostock.app.util.ApiError;
 import com.bxostock.app.util.Session;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
@@ -36,6 +38,10 @@ public abstract class BaseListFragment<T> extends Fragment {
     protected RowAdapter adapter;
     protected TextInputEditText etSearch;
     protected CheckBox cbFilter;
+    /** index of the selected status chip (only used when statusChips() returns labels) */
+    protected int statusIndex = 0;
+    protected View todayBar;
+    protected Button btnShowAll;
     private TextView tvMessage;
     private SwipeRefreshLayout swipe;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -48,6 +54,9 @@ public abstract class BaseListFragment<T> extends Fragment {
 
     protected String actionLabel() { return null; }
     protected String filterLabel() { return null; }
+    /** Return labels (for example All, Confirmed, Cancelled) to show a row of filter chips above the list. */
+    protected String[] statusChips() { return null; }
+    protected int initialStatus() { return 0; }
     protected void onAction() { }
     protected void onItemClick(T item) { }
     protected boolean matches(T item, String lowerKeyword) { return true; }
@@ -68,6 +77,29 @@ public abstract class BaseListFragment<T> extends Fragment {
         tvMessage = v.findViewById(R.id.tvMessage);
         swipe = v.findViewById(R.id.swipe);
         cbFilter = v.findViewById(R.id.cbFilter);
+
+        todayBar = v.findViewById(R.id.todayBar);
+        btnShowAll = v.findViewById(R.id.btnShowAll);
+        final String[] chipLabels = statusChips();
+        if (chipLabels != null) {
+            v.findViewById(R.id.statusScroll).setVisibility(View.VISIBLE);
+            final ChipGroup cg = v.findViewById(R.id.chipStatus);
+            final int[] ids = new int[chipLabels.length];
+            statusIndex = initialStatus();
+            for (int i = 0; i < chipLabels.length; i++) {
+                Chip c = (Chip) getLayoutInflater().inflate(R.layout.chip_filter, cg, false);
+                c.setId(View.generateViewId());
+                c.setText(chipLabels[i]);
+                ids[i] = c.getId();
+                cg.addView(c);
+            }
+            cg.check(ids[statusIndex]);
+            cg.setOnCheckedStateChangeListener((g, checked) -> {
+                if (checked.isEmpty()) return;
+                for (int i = 0; i < ids.length; i++) if (ids[i] == checked.get(0)) statusIndex = i;
+                reload();
+            });
+        }
 
         Button btn = v.findViewById(R.id.btnAction);
         if (actionLabel() != null) {

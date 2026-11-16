@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import com.bxostock.app.api.ApiClient;
 import com.bxostock.app.model.OrderLine;
 import com.bxostock.app.model.OrderResponse;
+import com.bxostock.app.model.ReturnResponse;
 import com.bxostock.app.util.ApiError;
 import com.bxostock.app.util.Fmt;
 import com.bxostock.app.util.PdfExporter;
@@ -20,6 +21,8 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 
 import okhttp3.ResponseBody;
@@ -49,7 +52,62 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
 
     @Override protected String searchHint() { return "Search order no., customer or staff"; }
     @Override protected String actionLabel() { return "New order"; }
-    @Override protected String filterLabel() { return "Hide cancelled orders"; }
+    // status chips (All / Confirmed / Cancelled) replace the old "Hide cancelled" checkbox, like the web page
+    @Override protected String[] statusChips() { return new String[]{"All", "Confirmed", "Cancelled"}; }
+
+    @Override
+    protected int initialStatus() {
+        android.os.Bundle args = getArguments();
+        String preset = args == null ? null : args.getString("filter");
+        return "today".equals(preset) || "confirmed".equals(preset) ? 1 : 0;
+    }
+
+    private boolean todayOnly;
+    // order ids that have at least one return (shows the Returned badge)
+    private final Set<Long> returned = new HashSet<>();
+    private long returnsAt = 0;
+    private boolean returnsStale = true;
+
+    @Override
+    public void onViewCreated(@androidx.annotation.NonNull android.view.View v, @androidx.annotation.Nullable android.os.Bundle s) {
+        super.onViewCreated(v, s);
+        android.os.Bundle args = getArguments();
+        todayOnly = args != null && "today".equals(args.getString("filter"));
+        todayBar.setVisibility(todayOnly ? android.view.View.VISIBLE : android.view.View.GONE);
+        btnShowAll.setOnClickListener(x -> {
+            todayOnly = false;
+            todayBar.setVisibility(android.view.View.GONE);
+            reload();
+        });
+    }
+
+    /** Load the returns first (for the Returned badge), then the orders. */
+    @Override
+    protected void reload() {
+        if (!isAdded() || getView() == null) return;
+        if (!returnsStale && System.currentTimeMillis() - returnsAt < 15000) {
+            super.reload();
+            return;
+        }
+        ApiClient.get(requireContext()).returnsList().enqueue(new Callback<List<ReturnResponse>>() {
+            @Override
+            public void onResponse(Call<List<ReturnResponse>> c, Response<List<ReturnResponse>> r) {
+                if (!isAdded()) return;
+                if (r.isSuccessful() && r.body() != null) {
+                    returned.clear();
+                    for (ReturnResponse x : r.body()) returned.add(x.orderId);
+                    returnsAt = System.currentTimeMillis();
+                    returnsStale = false;
+                }
+                OrdersFragment.super.reload();
+            }
+
+            @Override
+            public void onFailure(Call<List<ReturnResponse>> c, Throwable t) {
+                if (isAdded()) OrdersFragment.super.reload();
+            }
+        });
+    }
 
     @Override
     protected void onAction() {
@@ -63,11 +121,9 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
 
     @Override
     protected boolean matches(OrderResponse o, String k) {
-        android.os.Bundle args = getArguments();
-        String preset = args == null ? null : args.getString("filter");
-        if ("today".equals(preset) && (!"CONFIRMED".equals(o.status) || o.createdAt == null || !o.createdAt.startsWith(todayUtc()))) return false;
-        if ("confirmed".equals(preset) && !"CONFIRMED".equals(o.status)) return false;
-        if (cbFilter.isChecked() && "CANCELLED".equals(o.status)) return false;
+        if (statusIndex == 1 && !"CONFIRMED".equals(o.status)) return false;
+        if (statusIndex == 2 && !"CANCELLED".equals(o.status)) return false;
+        if (todayOnly && (o.createdAt == null || !o.createdAt.startsWith(todayUtc()))) return false;
         if (k.isEmpty()) return true;
         String hay = (o.id + " " + o.customerName + " " + o.createdBy).toLowerCase();
         return hay.contains(k);
@@ -84,7 +140,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
         r.title = "#" + o.id + " \u00B7 " + o.customerName;
         r.sub = Fmt.date(o.createdAt);
         r.right = Fmt.money(o.totalAmount);
-        r.rightSub = o.status;
+        r.rightSub = o.status + (returned.contains(o.id) ? " \u00B7 RETURNED" : "");
         r.warn = "CANCELLED".equals(o.status);
         return r;
     }
@@ -94,6 +150,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
         StringBuilder sb = new StringBuilder();
         sb.append("Customer: ").append(o.customerName)
                 .append("\nStatus: ").append(o.status)
+                .append(returned.contains(o.id) ? "  (Returned)" : "")
                 .append("\nDate: ").append(Fmt.date(o.createdAt))
                 .append("\nBy: ").append(o.createdBy).append("\n\n");
         if (o.items != null) {
@@ -121,7 +178,7 @@ public class OrdersFragment extends BaseListFragment<OrderResponse> {
                 .setTitle("Order #" + o.id)
                 .setItems(items, (d, which) -> {
                     if (which == 0) exportBill(o);
-                    else ReturnDialog.show(requireActivity(), o, this::reload);
+                    else ReturnDialog.show(requireActivity(), o, () -> { returnsStale = true; reload(); });
                 })
                 .show();
     }

@@ -18,6 +18,7 @@ import com.bxostock.app.model.StockRequest;
 import com.bxostock.app.util.ApiError;
 import com.bxostock.app.util.Picker;
 import com.bxostock.app.util.Session;
+import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
@@ -31,7 +32,9 @@ public class StockFragment extends Fragment {
     private Picker<Product> picker;
     private TextInputEditText etQty, etReason;
     private TextView tvInfo, tvMessage;
-    private View btnIn, btnOut;
+    private View btnIn, moveForm, subContainer;
+    private TextView tvIntro;
+    private boolean modeIn = true;
 
     @Nullable
     @Override
@@ -47,11 +50,42 @@ public class StockFragment extends Fragment {
         tvInfo = v.findViewById(R.id.tvInfo);
         tvMessage = v.findViewById(R.id.tvMessage);
         btnIn = v.findViewById(R.id.btnIn);
-        btnOut = v.findViewById(R.id.btnOut);
+        moveForm = v.findViewById(R.id.moveForm);
+        subContainer = v.findViewById(R.id.subContainer);
+        tvIntro = v.findViewById(R.id.tvIntro);
         picker = new Picker<>((AutoCompleteTextView) v.findViewById(R.id.acProduct), this::showInfo);
-        btnIn.setOnClickListener(x -> submit(true));
-        btnOut.setOnClickListener(x -> submit(false));
+        btnIn.setOnClickListener(x -> submit(modeIn));
         loadProducts();
+
+        // Stock In / Stock Out / Low stock / History, like the web Inventory page
+        ChipGroup chips = v.findViewById(R.id.chipStock);
+        Bundle args = getArguments();
+        String tab = args == null ? null : args.getString("tab");
+        int start = R.id.chipIn;
+        if ("out".equals(tab)) start = R.id.chipOut;
+        else if ("low".equals(tab)) start = R.id.chipLow;
+        else if ("history".equals(tab)) start = R.id.chipHistory;
+        chips.check(start);
+        select(start);
+        chips.setOnCheckedStateChangeListener((g, ids) -> {
+            if (!ids.isEmpty()) select(ids.get(0));
+        });
+    }
+
+    private void select(int chipId) {
+        if (chipId == R.id.chipLow || chipId == R.id.chipHistory) {
+            moveForm.setVisibility(View.GONE);
+            subContainer.setVisibility(View.VISIBLE);
+            Fragment f = chipId == R.id.chipLow ? new LowStockFragment() : new StockHistoryFragment();
+            getChildFragmentManager().beginTransaction().replace(R.id.subContainer, f).commit();
+            return;
+        }
+        modeIn = chipId != R.id.chipOut;
+        subContainer.setVisibility(View.GONE);
+        moveForm.setVisibility(View.VISIBLE);
+        tvMessage.setVisibility(View.GONE);
+        ((com.google.android.material.button.MaterialButton) btnIn).setText(modeIn ? "Stock in" : "Stock out");
+        tvIntro.setText(modeIn ? "Receive new stock into the store." : "Remove damaged or expired items from stock.");
     }
 
     private void showInfo(Product p) {
@@ -139,7 +173,6 @@ public class StockFragment extends Fragment {
 
     private void busy(boolean on) {
         btnIn.setEnabled(!on);
-        btnOut.setEnabled(!on);
     }
 
     private void error(String msg) {

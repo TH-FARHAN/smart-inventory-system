@@ -71,6 +71,25 @@
         <TextView android:id="@+id/tvMessage" android:layout_width="match_parent"
             android:layout_height="wrap_content" android:padding="8dp" android:visibility="gone" />
 
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilReportSearch"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"
+            app:endIconMode="clear_text"
+            app:startIconDrawable="@drawable/ic_search">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etReportSearch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <com.google.android.material.button.MaterialButton android:id="@+id/btnPdf" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="end" android:layout_marginTop="8dp" android:text="Download PDF" android:visibility="gone" />
 
         <GridLayout android:id="@+id/grid" android:layout_width="match_parent"

@@ -76,6 +76,7 @@ public class ProductsFragment extends BaseListFragment<Product> {
         MaterialAlertDialogBuilder b = new BxoDialog(requireContext())
                 .setTitle(p.name)
                 .setMessage("SKU: " + p.sku
+                        + "\nDescription: " + (p.description == null || p.description.trim().isEmpty() ? "-" : p.description.trim())
                         + "\nCategory: " + (p.categoryName == null ? "-" : p.categoryName)
                         + "\nSupplier: " + (p.supplierName == null ? "-" : p.supplierName)
                         + "\nPurchase price: " + Fmt.money(p.purchasePrice)
